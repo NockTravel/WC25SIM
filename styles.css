@@ -1,0 +1,19 @@
+:root{--bg:#f7f8fb;--card:#fff;--accent:#0b6efd;--muted:#666}
+*{box-sizing:border-box}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:0; background:var(--bg); color:#111}
+header{padding:1rem; text-align:center; background:linear-gradient(90deg,#fff,#f0f4ff)}
+h1{margin:.2rem 0}
+.muted{color:var(--muted); font-size:.95rem}
+main{padding:1rem; max-width:900px; margin:0 auto}
+#division-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:.6rem}
+.tile{background:var(--card); padding:.8rem; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.06); text-align:center}
+.tile button{width:100%; padding:.6rem; font-size:1rem; border-radius:6px; border:1px solid #ddd; background:#fff}
+.card{background:var(--card); padding:.8rem; margin-top:.8rem; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.hidden{display:none}
+#numpad{display:grid; grid-template-columns:repeat(3,1fr); gap:.4rem; margin:.6rem 0}
+.btn{padding:.6rem .8rem; border-radius:6px; border:1px solid #ccc; background:#fff}
+.btn.primary{background:var(--accent); color:#fff; border-color:transparent}
+.match-header{display:flex; gap:.6rem; align-items:center}
+#scoreboard{display:flex; justify-content:space-between; gap:1rem}
+#historyList{padding-left:1rem}
+@media (min-width:700px){#division-grid{grid-template-columns:repeat(3,1fr)}}
