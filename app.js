@@ -163,6 +163,7 @@ function startTournament() {
     myScores: [], oppScores: [], myPts: 0, oppPts: 0,
     myEnds: [], oppEnds: [],
     arrows: [], arrowTarget: arrowsPerSetEnd(data),
+    oppMatchEnds: null, bOppMatchEnds: null,
     soOppRaw: null, soMyRaw: null,
     soOppArrows: null, soMyArrows: null,
     // bronze parallel state
@@ -383,13 +384,10 @@ function confirmArrows() {
     }
   } else {
     const endIdx = state.myEnds.length;
-    const endMax = d.maxEnd || 30;
-    const oppMatchTotal = rand(d.scores[round.key]);
-    const oppEndsAll = decomposeTotal(oppMatchTotal, 5, endMax, Math.round(endMax * 0.73));
-    const oppEndVal = oppEndsAll[endIdx];
-    const oppArrows = decomposeEnd(oppEndVal, d.endArrows || 3);
+    const oppEndsAll = getOrDrawOppEnds(d, round.key);
+    const oppEndObj = oppEndsAll[endIdx];
     state.myEnds.push({ arrows: [...arrows], total });
-    state.oppEnds.push({ total: oppEndVal, arrows: oppArrows });
+    state.oppEnds.push(oppEndObj);
 
     if (state.myEnds.length >= 5) {
       state.myPts = state.myEnds.reduce((s, v) => s + v.total, 0);
@@ -428,7 +426,9 @@ function saveHistory(won, isBronze) {
   const myE = isBronze ? state.bMyEnds : state.myEnds;
   const myP = isBronze ? state.bMyPts : state.myPts;
   const opP = isBronze ? state.bOppPts : state.oppPts;
-  state.history.push({ label: round.label, myPts: myP, oppPts: opP, myScores: [...myS], myEnds: [...myE], won, isBronze });
+  const opS = isBronze ? state.bOppScores : state.oppScores;
+  const opE = isBronze ? state.bOppEnds : state.oppEnds;
+  state.history.push({ label: round.label, myPts: myP, oppPts: opP, myScores: [...myS], oppScores: [...opS], myEnds: [...myE], oppEnds: [...opE], won, isBronze });
 }
 
 function advanceRound() {
@@ -440,6 +440,21 @@ function advanceRound() {
   state.soOppArrows = null; state.soMyArrows = null;
   state.arrows = [];
   state.arrowTarget = arrowsPerSetEnd(state.data);
+  state.oppMatchEnds = null;
+}
+
+function getOrDrawOppEnds(d, roundKey) {
+  if (!state.oppMatchEnds) {
+    const oppTotal = rand(d.scores[roundKey]);
+    const endMax = d.maxEnd || 30;
+    const endMin = Math.round(endMax * 0.73);
+    const endTotals = decomposeTotal(oppTotal, 5, endMax, endMin);
+    state.oppMatchEnds = endTotals.map(t => ({
+      total: t,
+      arrows: decomposeEnd(t, d.endArrows || 3)
+    }));
+  }
+  return state.oppMatchEnds;
 }
 
 // ─── MATCH RESULT SCREEN (non-final rounds) ──────────────────────────────────
@@ -641,13 +656,15 @@ function confirmBronzeArrows(d, arrows, total, isRec, round) {
     if (decided) { resolveBronze(); return; }
   } else {
     const endIdx = state.bMyEnds.length;
-    const endMax = d.maxEnd || 30;
-    const oppMatchTotal = rand(d.scores[round.key]);
-    const oppEndsAll = decomposeTotal(oppMatchTotal, 5, endMax, Math.round(endMax * 0.73));
-    const oppEndVal = oppEndsAll[endIdx];
-    const oppArrows = decomposeEnd(oppEndVal, d.endArrows || 3);
+    if (!state.bOppMatchEnds) {
+      const endMax = d.maxEnd || 30;
+      const oppMatchTotal = rand(d.scores[round.key]);
+      const endTotals = decomposeTotal(oppMatchTotal, 5, endMax, Math.round(endMax * 0.73));
+      state.bOppMatchEnds = endTotals.map(t => ({ total: t, arrows: decomposeEnd(t, d.endArrows || 3) }));
+    }
+    const oppEndObj = state.bOppMatchEnds[endIdx];
     state.bMyEnds.push({ arrows: [...arrows], total });
-    state.bOppEnds.push({ total: oppEndVal, arrows: oppArrows });
+    state.bOppEnds.push(oppEndObj);
 
     if (state.bMyEnds.length >= 5) {
       state.bMyPts = state.bMyEnds.reduce((s, v) => s + v.total, 0);
@@ -738,16 +755,48 @@ function buildHistory() {
 }
 
 function buildScoreDetail(r) {
+  // Recurve: show each set as "my arrows = total vs opp  pts running"
   if (r.myScores && r.myScores.length > 0) {
+    let myPts = 0, opPts = 0;
     return r.myScores.map((s, i) => {
+      const op = r.oppScores ? r.oppScores[i] : null;
       const arrowStr = s.arrows.map(v => arrowDisplayStr(v)).join(' ');
-      return `<span style="color:var(--muted);margin-right:8px;">S${i+1} <span style="color:var(--text)">${arrowStr}</span>=<span style="color:var(--gold-light)">${s.total}</span></span>`;
+      let ptsDelta = '';
+      if (op !== null && op !== undefined) {
+        if (s.total > op) { myPts += 2; }
+        else if (s.total < op) { opPts += 2; }
+        else { myPts++; opPts++; }
+        const myCol = myPts > opPts ? 'var(--win)' : myPts < opPts ? 'var(--loss)' : 'var(--draw)';
+        ptsDelta = ` <span style="font-size:9px;color:${myCol}">${myPts}–${opPts}</span>`;
+      }
+      const setCol = op !== null ? (s.total > op ? 'var(--win)' : s.total < op ? 'var(--loss)' : 'var(--draw)') : 'var(--gold-light)';
+      const oppStr = op !== null ? `<span style="color:var(--muted)">vs ${op}</span> ` : '';
+      return `<span style="display:inline-block;margin-right:10px;margin-bottom:2px;">
+        <span style="color:var(--muted);font-size:9px">S${i+1}</span>
+        <span style="color:var(--text)">${arrowStr}</span>
+        =<span style="color:${setCol};font-weight:600">${s.total}</span>
+        ${oppStr}${ptsDelta}
+      </span>`;
     }).join('');
   }
+  // Compound: show each end with arrows, total, opp total
   if (r.myEnds && r.myEnds.length > 0) {
+    let myRunning = 0, opRunning = 0;
     return r.myEnds.map((e, i) => {
+      const op = r.oppEnds ? r.oppEnds[i] : null;
       const arrowStr = e.arrows.map(v => arrowDisplayStr(v)).join(' ');
-      return `<span style="color:var(--muted);margin-right:8px;">E${i+1} <span style="color:var(--text)">${arrowStr}</span>=<span style="color:var(--gold-light)">${e.total}</span></span>`;
+      myRunning += e.total;
+      if (op) opRunning += op.total;
+      const endCol = op ? (e.total > op.total ? 'var(--win)' : e.total < op.total ? 'var(--loss)' : 'var(--draw)') : 'var(--gold-light)';
+      const totCol = myRunning > opRunning ? 'var(--win)' : myRunning < opRunning ? 'var(--loss)' : 'var(--draw)';
+      const oppStr = op ? `<span style="color:var(--muted)">vs ${op.total}</span> ` : '';
+      const runStr = op ? `<span style="font-size:9px;color:${totCol}">${myRunning}–${opRunning}</span>` : '';
+      return `<span style="display:inline-block;margin-right:10px;margin-bottom:2px;">
+        <span style="color:var(--muted);font-size:9px">E${i+1}</span>
+        <span style="color:var(--text)">${arrowStr}</span>
+        =<span style="color:${endCol};font-weight:600">${e.total}</span>
+        ${oppStr}${runStr}
+      </span>`;
     }).join('');
   }
   return '';
