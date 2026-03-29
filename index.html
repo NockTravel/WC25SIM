@@ -1,60 +1,25 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Archery Match Trainer</title>
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Gwangju 2025 — Archery Tournament Simulator</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <h1>Archery Match Trainer</h1>
-    <p class="muted">Recurve (set system) & Compound (total) — mobile first</p>
-  </header>
+  <div class="app">
+    <div class="header">
+      <div class="header-flag">🇰🇷 Gwangju, South Korea · 5–12 Sep 2025</div>
+      <h1>World Archery Championships</h1>
+      <p>Tournament Simulator · All 10 divisions</p>
+    </div>
+    <div id="main"></div>
+  </div>
 
-  <main id="app">
-    <section id="home">
-      <h2>Pick division</h2>
-      <div id="division-grid"></div>
-    </section>
-
-    <section id="match" class="hidden">
-      <div class="match-header">
-        <button id="backHome" class="btn">← Home</button>
-        <h2 id="matchTitle"></h2>
-      </div>
-
-      <div id="scoreboard" class="card">
-        <div><strong>You</strong><div id="youScore">—</div></div>
-        <div><strong>Opponent</strong><div id="oppScore">—</div></div>
-      </div>
-
-      <div id="inputArea" class="card">
-        <div id="promptText">Enter arrows or set total</div>
-        <div id="numpad"></div>
-        <div class="controls">
-          <button id="confirmBtn" class="btn primary">Confirm</button>
-          <button id="clearBtn" class="btn">Clear</button>
-        </div>
-      </div>
-
-      <div id="history" class="card">
-        <h3>Sets / Ends</h3>
-        <ol id="historyList"></ol>
-      </div>
-
-      <div id="result" class="card hidden">
-        <h3>Match result</h3>
-        <div id="resultText"></div>
-        <button id="newMatch" class="btn">New match</button>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <small>Data from uploaded PDFs; replace <code>data/scores.json</code> to update field scores.</small>
-  </footer>
-
-<script src="app.js"></script>
+  <!-- Data files load first -->
+  <script src="data/individual.js"></script>
+  <script src="data/teams.js"></script>
+  <!-- App logic -->
+  <script src="app.js"></script>
 </body>
 </html>
