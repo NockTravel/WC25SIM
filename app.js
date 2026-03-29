@@ -795,64 +795,63 @@ function renderEliminated(main) {
 // ─── HISTORY ──────────────────────────────────────────────────────────────────
 function buildHistory() {
   if (!state || !state.history.length) return '';
-  let h = `<div class="history"><div class="history-title">Your run</div>`;
+  let h = `<div class="history">`;
   state.history.forEach(r => {
     const cls = r.won ? 'win' : 'loss';
     const badge = r.isBronze ? '🥉 ' : '';
-    const detail = buildScoreDetail(r);
-    h += `<div class="history-row" style="flex-wrap:wrap;gap:2px;">
-      <div class="h-round">${badge}${r.label}</div>
-      <div class="h-pts">${r.myPts}–${r.oppPts}</div>
-      <div class="h-result ${cls}" style="flex:0 0 auto">${r.won ? 'W' : 'L'}</div>
-      ${detail ? `<div style="width:100%;font-size:10px;line-height:1.8;padding-top:2px;">${detail}</div>` : ''}
+    const medalCol = r.won ? 'var(--win)' : 'var(--loss)';
+    h += `<div style="margin-bottom:14px;">
+      <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;">${badge}${r.label}</div>
+      ${buildScoreDetail(r)}
+      <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;color:${medalCol};margin-top:4px;">${r.won ? 'W' : 'L'} · ${r.myPts}–${r.oppPts}</div>
     </div>`;
   });
   return h + '</div>';
 }
 
 function buildScoreDetail(r) {
-  // Recurve: show each set as "my arrows = total vs opp  pts running"
+  // Each set/end on its own centred line:
+  // RECURVE:  10 9 X  29  4–2  28
+  // COMPOUND: 10 9 X  29  56–57  (running total, no set score shown separately)
+
   if (r.myScores && r.myScores.length > 0) {
     let myPts = 0, opPts = 0;
     return r.myScores.map((s, i) => {
       const op = r.oppScores ? r.oppScores[i] : null;
-      const arrowStr = s.arrows.map(v => arrowDisplayStr(v)).join(' ');
-      let ptsDelta = '';
       if (op !== null && op !== undefined) {
-        if (s.total > op) { myPts += 2; }
-        else if (s.total < op) { opPts += 2; }
+        if (s.total > op) myPts += 2;
+        else if (s.total < op) opPts += 2;
         else { myPts++; opPts++; }
-        const myCol = myPts > opPts ? 'var(--win)' : myPts < opPts ? 'var(--loss)' : 'var(--draw)';
-        ptsDelta = ` <span style="font-size:9px;color:${myCol}">${myPts}–${opPts}</span>`;
       }
-      const setCol = op !== null ? (s.total > op ? 'var(--win)' : s.total < op ? 'var(--loss)' : 'var(--draw)') : 'var(--gold-light)';
-      const oppStr = op !== null ? `<span style="color:var(--muted)">vs ${op}</span> ` : '';
-      return `<span style="display:inline-block;margin-right:10px;margin-bottom:2px;">
-        <span style="color:var(--muted);font-size:9px">S${i+1}</span>
-        <span style="color:var(--text)">${arrowStr}</span>
-        =<span style="color:${setCol};font-weight:600">${s.total}</span>
-        ${oppStr}${ptsDelta}
-      </span>`;
+      const setCol = op !== null ? (s.total > op ? 'var(--win)' : s.total < op ? 'var(--loss)' : 'var(--draw)') : 'var(--text)';
+      const ptsCol = myPts > opPts ? 'var(--win)' : myPts < opPts ? 'var(--loss)' : 'var(--draw)';
+      const arrows = s.arrows.map(v => `<span style="color:var(--text);font-weight:500">${arrowDisplayStr(v)}</span>`).join('<span style="color:var(--panel3);margin:0 2px">·</span>');
+      const ptsStr = op !== null ? `<span style="color:${ptsCol};font-weight:600;margin:0 8px">${myPts}–${opPts}</span>` : '';
+      const oppStr = op !== null ? `<span style="color:var(--muted)">${op}</span>` : '';
+      return `<div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:13px;line-height:2;letter-spacing:0.02em;">
+        ${arrows}
+        <span style="color:${setCol};font-weight:700;margin-left:6px">${s.total}</span>
+        ${ptsStr}${oppStr}
+      </div>`;
     }).join('');
   }
-  // Compound: show each end with arrows, total, opp total
+
   if (r.myEnds && r.myEnds.length > 0) {
     let myRunning = 0, opRunning = 0;
     return r.myEnds.map((e, i) => {
       const op = r.oppEnds ? r.oppEnds[i] : null;
-      const arrowStr = e.arrows.map(v => arrowDisplayStr(v)).join(' ');
       myRunning += e.total;
       if (op) opRunning += op.total;
-      const endCol = op ? (e.total > op.total ? 'var(--win)' : e.total < op.total ? 'var(--loss)' : 'var(--draw)') : 'var(--gold-light)';
+      const endCol = op ? (e.total > op.total ? 'var(--win)' : e.total < op.total ? 'var(--loss)' : 'var(--draw)') : 'var(--text)';
       const totCol = myRunning > opRunning ? 'var(--win)' : myRunning < opRunning ? 'var(--loss)' : 'var(--draw)';
-      const oppStr = op ? `<span style="color:var(--muted)">vs ${op.total}</span> ` : '';
-      const runStr = op ? `<span style="font-size:9px;color:${totCol}">${myRunning}–${opRunning}</span>` : '';
-      return `<span style="display:inline-block;margin-right:10px;margin-bottom:2px;">
-        <span style="color:var(--muted);font-size:9px">E${i+1}</span>
-        <span style="color:var(--text)">${arrowStr}</span>
-        =<span style="color:${endCol};font-weight:600">${e.total}</span>
-        ${oppStr}${runStr}
-      </span>`;
+      const arrows = e.arrows.map(v => `<span style="color:var(--text);font-weight:500">${arrowDisplayStr(v)}</span>`).join('<span style="color:var(--panel3);margin:0 2px">·</span>');
+      const runStr = op ? `<span style="color:${totCol};font-weight:600;margin:0 8px">${myRunning}–${opRunning}</span>` : '';
+      const oppStr = op ? `<span style="color:var(--muted)">${op.total}</span>` : '';
+      return `<div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:13px;line-height:2;letter-spacing:0.02em;">
+        ${arrows}
+        <span style="color:${endCol};font-weight:700;margin-left:6px">${e.total}</span>
+        ${runStr}${oppStr}
+      </div>`;
     }).join('');
   }
   return '';
