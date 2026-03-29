@@ -143,7 +143,7 @@ function renderDivisionPicker(main) {
   main.innerHTML = `
     <div class="division-grid" id="divGrid">
       ${divs.map(d => `
-        <div class="div-card${selectedDiv === d.id ? ' selected' : ''}" onclick="selectDiv('${d.id}','${d.src}')">
+        <div class="div-card${selectedDiv === d.id ? ' selected' : ''}" onclick="selectDiv('${d.id}')">
           <div class="div-type">${d.type}</div>
           <div class="div-name">${d.name}</div>
           <div class="div-sub">${d.sub}</div>
@@ -156,18 +156,21 @@ function renderDivisionPicker(main) {
   `;
 }
 
-function selectDiv(id, src) {
+function selectDiv(id) {
   selectedDiv = id;
   render();
 }
 
+function getDataForDiv(id) {
+  if (window.DATA_INDIVIDUAL && window.DATA_INDIVIDUAL[id]) return window.DATA_INDIVIDUAL[id];
+  if (window.DATA_TEAMS && window.DATA_TEAMS[id]) return window.DATA_TEAMS[id];
+  return null;
+}
+
 function startTournament() {
   if (!selectedDiv) return;
-  // Get data
-  const data = selectedDiv in window.DATA_INDIVIDUAL
-    ? window.DATA_INDIVIDUAL[selectedDiv]
-    : window.DATA_TEAMS[selectedDiv];
-  if (!data) return;
+  const data = getDataForDiv(selectedDiv);
+  if (!data) { alert('Data not loaded yet — check data/individual.js and data/teams.js are in your repo.'); return; }
 
   state = {
     div: selectedDiv,
@@ -809,9 +812,7 @@ function advanceOrEliminate(won) {
 }
 
 function restartSame() {
-  const divId = state.div;
-  const src = divId in (window.DATA_INDIVIDUAL || {}) ? 'individual' : 'teams';
-  selectedDiv = divId;
+  selectedDiv = state.div;
   startTournament();
 }
 
