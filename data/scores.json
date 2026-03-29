@@ -1,0 +1,52 @@
+{
+  "events": [
+    {
+      "category": "Recurve Women",
+      "finals": [
+        {"rank":1,"name":"KANG Chaeyoung","noc":"KOR"},
+        {"rank":2,"name":"ZHU Jingyi","noc":"CHN"},
+        {"rank":3,"name":"AN San","noc":"KOR"},
+        {"rank":4,"name":"CHOIRUNISA Diananda","noc":"INA"},
+        {"rank":5,"name":"LIM Sihyeon","noc":"KOR"},
+        {"rank":6,"name":"LI Jiaman","noc":"CHN"},
+        {"rank":7,"name":"PAVLOVA Anastasia","noc":"UKR"},
+        {"rank":8,"name":"VALENCIA Alejandra","noc":"MEX"}
+      ]
+    },
+    {
+      "category": "Recurve Men",
+      "finals": [
+        {"rank":1,"name":"TEMIÑO MEDIEL Andres","noc":"ESP"},
+        {"rank":2,"name":"D'ALMEIDA Marcus","noc":"BRA"},
+        {"rank":3,"name":"KIM Je Deok","noc":"KOR"},
+        {"rank":4,"name":"BORSANI Matteo","noc":"ITA"},
+        {"rank":5,"name":"ELLISON Brady","noc":"USA"},
+        {"rank":6,"name":"GRANDE Matias","noc":"MEX"},
+        {"rank":7,"name":"TANG Chih-Chun","noc":"TPE"},
+        {"rank":8,"name":"PETERS Eric","noc":"CAN"}
+      ]
+    },
+    {
+      "category": "Compound Men",
+      "finals": [
+        {"rank":1,"name":"GIRARD Nicolas","noc":"FRA"},
+        {"rank":2,"name":"FULLERTON Mathias","noc":"DEN"},
+        {"rank":3,"name":"CHOI Yonghee","noc":"KOR"},
+        {"rank":4,"name":"BROADNAX Curtis","noc":"USA"},
+        {"rank":5,"name":"FUGE Prathamesh","noc":"IND"},
+        {"rank":6,"name":"SEZGIN Yagiz","noc":"TUR"},
+        {"rank":7,"name":"YADAV Rishabh","noc":"IND"},
+        {"rank":8,"name":"SAINI Aman","noc":"IND"}
+      ]
+    },
+    {
+      "category": "Compound Women",
+      "finals": [
+        {"rank":1,"name":"BECERRA Andrea","noc":"MEX"},
+        {"rank":2,"name":"PAIZ Sofia","noc":"ESA"},
+        {"rank":3,"name":"USQUIANO Alejandra","noc":"COL"},
+        {"rank":4,"name":"KAUR Parneet","noc":"IND"}
+      ]
+    }
+  ]
+}
