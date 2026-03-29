@@ -91,6 +91,18 @@ function arrowsPerSetEnd(d) {
   return 3;
 }
 
+function maxSetsEnds(d) {
+  // Team matches are 4 sets/ends; individual are 5
+  return (d.type === 'recurve' || d.type === 'compound') ? 5 : 4;
+}
+
+function soTriggerPts(d) {
+  // Recurve individual: SO at 5-5 (max 5 sets, 10pts each side)
+  // Recurve team/mixed: SO at 4-4 (max 4 sets, 8pts each side)
+  // Compound: cumulative total tie triggers SO regardless
+  return (d.type === 'recurve' || d.type === 'compound') ? 5 : 4;
+}
+
 function $(id) { return document.getElementById(id); }
 
 function render() {
@@ -191,18 +203,21 @@ function renderPlaying(main) {
 
 // ─── SCOREBOARD: RECURVE ──────────────────────────────────────────────────────
 function buildRecurveBoard() {
+  const d = state.data;
+  const maxS = maxSetsEnds(d);
   const scores = state.inBronze ? state.bMyScores : state.myScores;
   const oppScores = state.inBronze ? state.bOppScores : state.oppScores;
   const myPts = state.inBronze ? state.bMyPts : state.myPts;
   const oppPts = state.inBronze ? state.bOppPts : state.oppPts;
-  const cols = '68px repeat(5,1fr) 38px';
+  const cols = `68px repeat(${maxS},1fr) 38px`;
+  const setLabels = Array.from({length: maxS}, (_, i) => `<div style="text-align:center">S${i+1}</div>`).join('');
   let html = `<div class="scoreboard">
     <div class="score-header" style="grid-template-columns:${cols}">
-      <div></div>${[1,2,3,4,5].map(s=>`<div style="text-align:center">S${s}</div>`).join('')}
+      <div></div>${setLabels}
       <div style="text-align:center">Pts</div>
     </div>
     <div class="score-row" style="grid-template-columns:${cols}"><div class="player-label">Opp</div>`;
-  for (let s = 0; s < 5; s++) {
+  for (let s = 0; s < maxS; s++) {
     if (s < oppScores.length) {
       const op = oppScores[s], my = scores[s] ? scores[s].total : -1;
       const cls = op > my ? 'win' : op < my ? 'loss' : 'draw';
@@ -213,7 +228,7 @@ function buildRecurveBoard() {
   }
   html += `<div class="pts-cell pts-opp">${oppPts}</div></div>
     <div class="score-row" style="grid-template-columns:${cols}"><div class="player-label you">You</div>`;
-  for (let s = 0; s < 5; s++) {
+  for (let s = 0; s < maxS; s++) {
     if (s < scores.length) {
       const my = scores[s], op = oppScores[s];
       const cls = my.total > op ? 'win' : my.total < op ? 'loss' : 'draw';
@@ -232,14 +247,16 @@ function buildCompoundBoard() {
   const oppEnds = state.inBronze ? state.bOppEnds : state.oppEnds;
   const myTotal = myEnds.reduce((s, v) => s + v.total, 0);
   const oppTotal = oppEnds.reduce((s, v) => s + v.total, 0);
-  const cols = '52px repeat(5,1fr) 44px';
+  const maxE = maxSetsEnds(state.data);
+  const cols = `52px repeat(${maxE},1fr) 44px`;
+  const endLabels = Array.from({length: maxE}, (_, i) => `<div style="text-align:center">E${i+1}</div>`).join('');
   let html = `<div class="scoreboard">
     <div class="score-header" style="grid-template-columns:${cols}">
-      <div></div>${[1,2,3,4,5].map(e=>`<div style="text-align:center">E${e}</div>`).join('')}
+      <div></div>${endLabels}
       <div style="text-align:center">Tot</div>
     </div>
     <div class="score-row" style="grid-template-columns:${cols}"><div class="player-label">Opp</div>`;
-  for (let e = 0; e < 5; e++) {
+  for (let e = 0; e < maxE; e++) {
     if (e < oppEnds.length) {
       const op = oppEnds[e].total, my = myEnds[e] ? myEnds[e].total : null;
       const cls = my !== null ? (op > my ? 'win' : op < my ? 'loss' : 'draw') : 'filled';
@@ -247,10 +264,10 @@ function buildCompoundBoard() {
     } else if (e === oppEnds.length) { html += `<div class="cell active">—</div>`; }
     else { html += `<div class="cell">—</div>`; }
   }
-  const oppTotCls = myEnds.length === 5 ? (oppTotal > myTotal ? 'win' : oppTotal < myTotal ? 'loss' : 'draw') : '';
+  const oppTotCls = myEnds.length === maxE ? (oppTotal > myTotal ? 'win' : oppTotal < myTotal ? 'loss' : 'draw') : '';
   html += `<div class="pts-cell pts-opp ${oppTotCls}">${oppTotal || '—'}</div></div>
     <div class="score-row" style="grid-template-columns:${cols}"><div class="player-label you">You</div>`;
-  for (let e = 0; e < 5; e++) {
+  for (let e = 0; e < maxE; e++) {
     if (e < myEnds.length) {
       const my = myEnds[e].total, op = oppEnds[e] ? oppEnds[e].total : null;
       const cls = op !== null ? (my > op ? 'win' : my < op ? 'loss' : 'draw') : 'filled';
@@ -258,7 +275,7 @@ function buildCompoundBoard() {
     } else if (e === myEnds.length) { html += `<div class="cell active">?</div>`; }
     else { html += `<div class="cell">—</div>`; }
   }
-  const myTotCls = myEnds.length === 5 ? (myTotal > oppTotal ? 'win' : myTotal < oppTotal ? 'loss' : 'draw') : '';
+  const myTotCls = myEnds.length === maxE ? (myTotal > oppTotal ? 'win' : myTotal < oppTotal ? 'loss' : 'draw') : '';
   html += `<div class="pts-cell pts-you ${myTotCls}">${myTotal || '—'}</div></div></div>`;
 
   if (oppEnds.length > 0) {
@@ -286,10 +303,10 @@ function buildArrowZone(isSO) {
     setLabel = 'Shoot-off';
   } else if (isRec) {
     const n = (state.inBronze ? state.bMyScores : state.myScores).length + 1;
-    setLabel = `Set ${n} of 5`;
+    setLabel = `Set ${n} of ${maxSetsEnds(d)}`;
   } else {
     const n = (state.inBronze ? state.bMyEnds : state.myEnds).length + 1;
-    setLabel = `End ${n} of 5`;
+    setLabel = `End ${n} of ${maxSetsEnds(d)}`;
   }
 
   const arrowLabel = `Arrow ${entered + 1} of ${target}`;
@@ -372,10 +389,14 @@ function confirmArrows() {
     else if (total < oppScore) state.oppPts += 2;
     else { state.myPts++; state.oppPts++; }
 
+    const maxS = maxSetsEnds(d);
     const played = state.myScores.length;
-    const left = 5 - played;
-    const decided = state.myPts > state.oppPts + left*2 || state.oppPts > state.myPts + left*2 || played >= 5;
+    const left = maxS - played;
+    const decided = state.myPts > state.oppPts + left*2 || state.oppPts > state.myPts + left*2 || played >= maxS;
     if (decided) {
+      // Team: SO at 4-4 (ties on 4pts each after 4 sets)
+      // Individual: SO at 5-5 (ties on 5pts each after 5 sets)
+      const soTrigger = maxS * 2 / 2; // = maxS (4 for team, 5 for individual... actually just check equal)
       if (state.myPts === state.oppPts) {
         state.soOppRaw = rand(pool.so || [9,10,8,9]);
         state.arrows = [];
@@ -389,7 +410,7 @@ function confirmArrows() {
     state.myEnds.push({ arrows: [...arrows], total });
     state.oppEnds.push(oppEndObj);
 
-    if (state.myEnds.length >= 5) {
+    if (state.myEnds.length >= maxSetsEnds(d)) {
       state.myPts = state.myEnds.reduce((s, v) => s + v.total, 0);
       state.oppPts = state.oppEnds.reduce((s, v) => s + v.total, 0);
       if (state.myPts === state.oppPts) {
@@ -448,7 +469,7 @@ function getOrDrawOppEnds(d, roundKey) {
     const oppTotal = rand(d.scores[roundKey]);
     const endMax = d.maxEnd || 30;
     const endMin = Math.round(endMax * 0.73);
-    const endTotals = decomposeTotal(oppTotal, 5, endMax, endMin);
+    const endTotals = decomposeTotal(oppTotal, maxSetsEnds(d), endMax, endMin);
     state.oppMatchEnds = endTotals.map(t => ({
       total: t,
       arrows: decomposeEnd(t, d.endArrows || 3)
@@ -650,23 +671,24 @@ function confirmBronzeArrows(d, arrows, total, isRec, round) {
     else if (total < oppScore) state.bOppPts += 2;
     else { state.bMyPts++; state.bOppPts++; }
 
+    const maxS = maxSetsEnds(d);
     const played = state.bMyScores.length;
-    const left = 5 - played;
-    const decided = state.bMyPts > state.bOppPts + left*2 || state.bOppPts > state.bMyPts + left*2 || played >= 5;
+    const left = maxS - played;
+    const decided = state.bMyPts > state.bOppPts + left*2 || state.bOppPts > state.bMyPts + left*2 || played >= maxS;
     if (decided) { resolveBronze(); return; }
   } else {
     const endIdx = state.bMyEnds.length;
     if (!state.bOppMatchEnds) {
       const endMax = d.maxEnd || 30;
       const oppMatchTotal = rand(d.scores[round.key]);
-      const endTotals = decomposeTotal(oppMatchTotal, 5, endMax, Math.round(endMax * 0.73));
+      const endTotals = decomposeTotal(oppMatchTotal, maxSetsEnds(d), endMax, Math.round(endMax * 0.73));
       state.bOppMatchEnds = endTotals.map(t => ({ total: t, arrows: decomposeEnd(t, d.endArrows || 3) }));
     }
     const oppEndObj = state.bOppMatchEnds[endIdx];
     state.bMyEnds.push({ arrows: [...arrows], total });
     state.bOppEnds.push(oppEndObj);
 
-    if (state.bMyEnds.length >= 5) {
+    if (state.bMyEnds.length >= maxSetsEnds(d)) {
       state.bMyPts = state.bMyEnds.reduce((s, v) => s + v.total, 0);
       state.bOppPts = state.bOppEnds.reduce((s, v) => s + v.total, 0);
       resolveBronze(); return;
