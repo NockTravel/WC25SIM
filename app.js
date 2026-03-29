@@ -293,6 +293,7 @@ function buildCompoundBoard() {
 function buildArrowZone(isSO) {
   const d = state.data;
   const arrows = state.arrows || [];
+  const isCompoundSO = isSO && isCompoundType(d) && (d.type.includes('team') || d.type.includes('mixed'));
   const target = isSO ? (d.archers || 1) : state.arrowTarget;
   const entered = arrows.length;
   const allDone = entered >= target;
@@ -309,7 +310,12 @@ function buildArrowZone(isSO) {
     setLabel = `End ${n} of ${maxSetsEnds(d)}`;
   }
 
-  const arrowLabel = `Arrow ${entered + 1} of ${target}`;
+  let arrowLabel;
+  if (isCompoundSO) {
+    arrowLabel = `Archer ${entered + 1} of ${target} end score`;
+  } else {
+    arrowLabel = `Arrow ${entered + 1} of ${target}`;
+  }
   const runningTotal = arrows.reduce((s, v) => s + arrowScore(v), 0);
 
   const pipHtml = Array.from({length: target}, (_, i) => {
@@ -322,17 +328,29 @@ function buildArrowZone(isSO) {
     return `<div style="min-width:30px;height:30px;border-radius:50%;background:var(--panel);border:0.5px solid rgba(255,255,255,0.07)"></div>`;
   }).join('');
 
-  const soNote = isSO ? ' · Shoot-off (0–10 or X)' : '';
+  let soNote = '';
+  if (isSO && isCompoundSO) soNote = ' · Enter each archer\'s 3-arrow end total';
+  else if (isSO) soNote = ' · Shoot-off (0–10 or X)';
   return `<div class="input-zone" style="${isSO?'border-color:rgba(201,168,76,0.8);':''}">
     <div class="set-prompt" style="${isSO?'color:var(--gold);':''}">${setLabel} · ${arrowLabel}${soNote}</div>
     <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px;">${pipHtml}</div>
     ${entered > 0 ? `<div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--muted);margin-bottom:8px;">Running total: ${runningTotal}</div>` : ''}
-    ${buildArrowNumpad(allDone, isSO)}
+    ${buildArrowNumpad(allDone, isSO, isCompoundSO ? (d.maxEnd || 30) : 10)}
   </div>`;
 }
 
-function buildArrowNumpad(showShoot, isSO) {
+function buildArrowNumpad(showShoot, isSO, soMaxVal) {
   const shootFn = isSO ? 'confirmSO()' : 'confirmArrows()';
+  const useHighNumpad = soMaxVal && soMaxVal > 10;
+  // For compound team SO, use digit numpad (to enter 2-digit end totals like 28, 29, 30)
+  if (useHighNumpad) {
+    const digits = ['1','2','3','4','5','6','7','8','9','0'];
+    let h = `<div class="numpad numpad-4col">`;
+    digits.forEach(d => { h += `<button class="np-btn" onclick="arrowNpDigit('${d}',${soMaxVal})">${d}</button>`; });
+    h += `<button class="np-btn del" onclick="arrowUndo()">⌫</button>`;
+    if (showShoot) h += `<button class="np-btn shoot-btn" onclick="${shootFn}" style="grid-column:span 4;margin-top:4px;">SHOOT →</button>`;
+    return h + '</div>';
+  }
   const keys = [
     {l:'M',c:'miss',fn:'arrowNp(0)'},
     {l:'1',c:'',fn:'arrowNp(1)'},{l:'2',c:'',fn:'arrowNp(2)'},{l:'3',c:'',fn:'arrowNp(3)'},
@@ -360,6 +378,23 @@ function arrowNp(val) {
 
 function arrowUndo() {
   if (state.arrows && state.arrows.length > 0) { state.arrows.pop(); render(); }
+}
+
+// Digit-by-digit entry for compound team SO end totals (e.g. 2 then 9 = 29)
+let _digitBuf = '';
+function arrowNpDigit(digit, maxVal) {
+  _digitBuf += digit;
+  const num = parseInt(_digitBuf);
+  if (num > maxVal) { _digitBuf = digit; }
+  if (_digitBuf.length >= 2) {
+    const val = parseInt(_digitBuf);
+    _digitBuf = '';
+    if (!isNaN(val) && val >= 0 && val <= maxVal) {
+      state.arrows = state.arrows || [];
+      state.arrows.push(val);
+      render();
+    }
+  }
 }
 
 // ─── CONFIRM ARROWS (normal set/end) ─────────────────────────────────────────
@@ -534,12 +569,18 @@ function renderShootoff(main) {
   main.innerHTML = html;
 }
 
+function isCompoundType(d) {
+  return d.type === 'compound' || d.type === 'compound_team' || d.type === 'compound_mixed';
+}
+
 function confirmSO() {
   const d = state.data;
   const arrows = state.arrows || [];
+  const isCompound = isCompoundType(d);
   const isTeam = d.type.includes('team') || d.type.includes('mixed');
 
   if (!isTeam) {
+    // Individual recurve or compound: single arrow
     const myRaw = arrows[0];
     if (myRaw === undefined) return;
     state.soMyRaw = myRaw;
@@ -547,17 +588,29 @@ function confirmSO() {
     if (res.won) state.myPts++;
     else if (res.tied) { if (Math.random() > 0.5) state.myPts++; else state.oppPts++; }
     else state.oppPts++;
+  } else if (isCompound) {
+    // Compound team/mixed SO: user enters arrows for their full end,
+    // opp total drawn from flat pool, compare totals. On tie user wins (higher inner).
+    const target = d.archers || 2; // arrows per archer is 3 for compound, but user enters per-archer totals
+    if (arrows.length < target) return;
+    state.soMyArrows = [...arrows];
+    const myTotal = arrows.reduce((s, v) => s + arrowScore(v), 0);
+    const oppTotal = rand(d.so || [87,88,89]);
+    state.soOppRaw = oppTotal; // store as single value for display
+    const won = myTotal > oppTotal || (myTotal === oppTotal); // tie = user wins on inner
+    if (won) state.myPts++; else state.oppPts++;
+    state.soOppArrows = null; // not decomposed for compound team
   } else {
+    // Recurve team/mixed SO: one arrow per archer, compare total then best arrow
     const target = d.archers || 2;
     if (arrows.length < target) return;
     state.soMyArrows = [...arrows];
     const soPool = d.so;
     let oppArrows;
     if (soPool && Array.isArray(soPool[0])) {
-      oppArrows = rand(soPool);
+      oppArrows = rand(soPool); // array of per-archer arrow scores
     } else {
-      const oppTotal = rand(soPool || [9,9,10]);
-      oppArrows = decomposeEnd(oppTotal, target, false);
+      oppArrows = Array.from({length: target}, () => rand([8,9,9,10,10,10]));
     }
     state.soOppArrows = oppArrows;
     const res = resolveTeamSO(arrows, oppArrows);
@@ -576,14 +629,20 @@ function renderSOReveal(main) {
   const isTeam = d.type.includes('team') || d.type.includes('mixed');
 
   let soHtml = '';
+  const isCompound = isCompoundType(d);
   if (!isTeam || !state.soMyArrows) {
-    const myD = arrowDisplayStr(state.soMyRaw);
+    // Individual SO or compound team SO — show as single values
+    const myD = state.soMyArrows
+      ? state.soMyArrows.reduce((s,v) => s + arrowScore(v), 0)  // compound team: sum of archer end totals
+      : arrowDisplayStr(state.soMyRaw);                          // individual: single arrow display
+    const oppD = state.soOppRaw;
     soHtml = `<div class="so-reveal">
-      <div class="so-col"><div class="so-val" style="color:var(--muted)">${state.soOppRaw}</div><div class="so-lbl">Opponent</div></div>
+      <div class="so-col"><div class="so-val" style="color:var(--muted)">${oppD}</div><div class="so-lbl">Opponent</div></div>
       <div class="so-vs">vs</div>
       <div class="so-col"><div class="so-val" style="color:var(--gold-light)">${myD}</div><div class="so-lbl">You</div></div>
     </div>`;
   } else {
+    // Recurve team/mixed SO — show individual arrow pips per archer
     const myT = state.soMyArrows.reduce((s,v)=>s+arrowScore(v),0);
     const oppT = state.soOppArrows.reduce((s,v)=>s+v,0);
     const myPips = state.soMyArrows.map(v=>`<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
