@@ -3,22 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Gwangju 2025 — Archery Tournament Simulator</title>
+  <title>Archery Tournament Simulator</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="app">
     <div class="header">
-      <div class="header-flag">🇰🇷 Gwangju, South Korea · 5–12 Sep 2025</div>
-      <h1>World Archery Championships</h1>
-      <p>Tournament Simulator · All 10 divisions</p>
+      <div class="header-flag">Archery Tournament Simulator</div>
+      <h1>Compete Against the World</h1>
+      <p>Real scores from real tournaments</p>
     </div>
     <div id="main"></div>
   </div>
 
-  <!-- Data files load first -->
-  <script src="data/individual.js"></script>
-  <script src="data/teams.js"></script>
+  <!-- Manifest loads immediately — tiny file, defines menu structure only -->
+  <script src="data/events/manifest.js"></script>
   <!-- App logic -->
   <script src="app.js"></script>
 </body>
