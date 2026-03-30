@@ -21,9 +21,13 @@ window.EVENT_MANIFEST = {
       {
         id: '2025-asia-cup-1',
         label: '2025 Asia Cup Stage 1',
-        sub: 'Coming soon',
-        files: [],
-        comingSoon: true
+        sub: 'Bangkok, Thailand · Feb 2025',
+        files: [
+          'data/events/outdoor/2025-asia-cup-1-outdoor-individual.js',
+          'data/events/outdoor/2025-asia-cup-1-outdoor-teams.js'
+        ],
+        individualKey: 'DATA_ASIA_CUP_1_INDIVIDUAL',
+        teamsKey: 'DATA_ASIA_CUP_1_TEAMS'
       },
       {
         id: '2025-nationals',
