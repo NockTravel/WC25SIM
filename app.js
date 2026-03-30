@@ -2,8 +2,9 @@
 // app.js — all game logic
 
 // ─── NAVIGATION STATE ────────────────────────────────────────────────────────
+let navBowType  = null;   // 'recurve' | 'compound' | 'barebow'
 let navCategory = null;   // 'outdoor' | 'field' | 'indoor'
-let navDiv      = null;   // selected division id before event is chosen
+let navDiv      = null;   // selected division id
 let navEvent    = null;   // event object from manifest
 let loadedFiles = {};     // tracks which data files have been injected
 let authed      = false;  // soft password gate
@@ -85,9 +86,10 @@ let selectedDiv = null;
 let state = null;
 
 function isRecurveType(d) {
-  // barebow follows identical set-point rules to recurve
-  return d.type === 'recurve' || d.type === 'recurve_team' || d.type === 'recurve_mixed'
-      || d.type === 'barebow'  || d.type === 'barebow_team'  || d.type === 'barebow_mixed';
+  // barebow and junior recurve follow identical set-point rules
+  return ['recurve','recurve_team','recurve_mixed',
+          'recurve_u21','recurve_u15','recurve_u13',
+          'barebow','barebow_team','barebow_mixed'].includes(d.type);
 }
 
 function arrowsPerSetEnd(d) {
@@ -102,7 +104,8 @@ function arrowsPerSetEnd(d) {
 
 function maxSetsEnds(d) {
   // Team matches are 4 sets/ends; individual are 5
-  return (d.type === 'recurve' || d.type === 'compound') ? 5 : 4;
+  const individual = ['recurve','compound','recurve_u21','recurve_u15','recurve_u13','compound_u21','barebow'];
+  return individual.includes(d.type) ? 5 : 4;
 }
 
 function soTriggerPts(d) {
@@ -119,6 +122,7 @@ function render() {
   // Navigation layers before tournament starts
   if (!state) {
     if (!authed)       { renderPasswordGate(main); return; }
+    if (!navBowType)   { renderBowTypePicker(main); return; }
     if (!navDiv)       { renderDivisionPicker(main); return; }
     if (!navCategory)  { renderLanding(main); return; }
     if (!navEvent)     { renderCategoryPicker(main); return; }
@@ -252,31 +256,76 @@ function loadEventFiles(ev, callback) {
 }
 
 // ─── DIVISION PICKER ──────────────────────────────────────────────────────────
-function renderDivisionPicker(main) {
-  const ALL_DIVS = [
-    { id:'recurve_women',       type:'Recurve',  name:'Women',      sub:'Individual · Set points'  },
-    { id:'recurve_men',         type:'Recurve',  name:'Men',        sub:'Individual · Set points'  },
-    { id:'compound_women',      type:'Compound', name:'Women',      sub:'Individual · Total score' },
-    { id:'compound_men',        type:'Compound', name:'Men',        sub:'Individual · Total score' },
-    { id:'recurve_women_team',  type:'Recurve',  name:'Women Team', sub:'Team · Set points'        },
-    { id:'recurve_men_team',    type:'Recurve',  name:'Men Team',   sub:'Team · Set points'        },
-    { id:'recurve_mixed_team',  type:'Recurve',  name:'Mixed Team', sub:'Mixed · Set points'       },
-    { id:'compound_women_team', type:'Compound', name:'Women Team', sub:'Team · Total score'       },
-    { id:'compound_men_team',   type:'Compound', name:'Men Team',   sub:'Team · Total score'       },
-    { id:'compound_mixed_team', type:'Compound', name:'Mixed Team', sub:'Mixed · Total score'      },
-    { id:'barebow_women',       type:'Barebow',  name:'Women',      sub:'Individual · Set points'  },
-    { id:'barebow_men',         type:'Barebow',  name:'Men',        sub:'Individual · Set points'  },
-    { id:'barebow_women_team',  type:'Barebow',  name:'Women Team', sub:'Team · Set points'        },
-    { id:'barebow_men_team',    type:'Barebow',  name:'Men Team',   sub:'Team · Set points'        },
-    { id:'barebow_mixed_team',  type:'Barebow',  name:'Mixed Team', sub:'Mixed · Set points'       },
+// ─── BOW TYPE PICKER ──────────────────────────────────────────────────────────
+function renderBowTypePicker(main) {
+  const types = [
+    { id:'recurve',  label:'Recurve',  icon:'🏹', sub:'Set points · 3 arrows per set' },
+    { id:'compound', label:'Compound', icon:'⚙️', sub:'Cumulative score · 3 arrows per end' },
+    { id:'barebow',  label:'Barebow',  icon:'🎯', sub:'Set points · No sights or stabilisers' },
   ];
   main.innerHTML = `
-    <div class="nav-section-label">Choose your division</div>
+    <div class="nav-section-label">Choose bow type</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${types.map(t => `
+        <div class="nav-card" onclick="selectBowType('${t.id}')">
+          <span class="nav-icon">${t.icon}</span>
+          <div style="flex:1">
+            <div class="nav-name">${t.label}</div>
+            <div class="nav-sub">${t.sub}</div>
+          </div>
+          <span class="nav-arrow">›</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function selectBowType(bt) {
+  navBowType = bt;
+  navDiv = null;
+  selectedDiv = null;
+  render();
+}
+
+function renderDivisionPicker(main) {
+  const ALL_DIVS = {
+    recurve: [
+      { id:'recurve_women',      name:'Women',      sub:'Individual · Set points' },
+      { id:'recurve_men',        name:'Men',        sub:'Individual · Set points' },
+      { id:'recurve_u21_women',  name:'U21 Women',  sub:'Individual · Set points' },
+      { id:'recurve_u21_men',    name:'U21 Men',    sub:'Individual · Set points' },
+      { id:'recurve_u15_women',  name:'U15 Women',  sub:'Individual · Set points' },
+      { id:'recurve_u15_men',    name:'U15 Men',    sub:'Individual · Set points' },
+      { id:'recurve_u13_women',  name:'U13 Women',  sub:'Individual · Set points' },
+      { id:'recurve_u13_men',    name:'U13 Men',    sub:'Individual · Set points' },
+      { id:'recurve_women_team', name:'Women Team', sub:'Team · Set points'       },
+      { id:'recurve_men_team',   name:'Men Team',   sub:'Team · Set points'       },
+      { id:'recurve_mixed_team', name:'Mixed Team', sub:'Mixed · Set points'      },
+    ],
+    compound: [
+      { id:'compound_women',      name:'Women',      sub:'Individual · Total score' },
+      { id:'compound_men',        name:'Men',        sub:'Individual · Total score' },
+      { id:'compound_u21_women',  name:'U21 Women',  sub:'Individual · Total score' },
+      { id:'compound_u21_men',    name:'U21 Men',    sub:'Individual · Total score' },
+      { id:'compound_women_team', name:'Women Team', sub:'Team · Total score'       },
+      { id:'compound_men_team',   name:'Men Team',   sub:'Team · Total score'       },
+      { id:'compound_mixed_team', name:'Mixed Team', sub:'Mixed · Total score'      },
+    ],
+    barebow: [
+      { id:'barebow_women',      name:'Women',      sub:'Individual · Set points' },
+      { id:'barebow_men',        name:'Men',        sub:'Individual · Set points' },
+      { id:'barebow_women_team', name:'Women Team', sub:'Team · Set points'       },
+      { id:'barebow_men_team',   name:'Men Team',   sub:'Team · Set points'       },
+      { id:'barebow_mixed_team', name:'Mixed Team', sub:'Mixed · Set points'      },
+    ],
+  };
+  const divs = ALL_DIVS[navBowType] || [];
+  const bowLabel = navBowType ? navBowType.charAt(0).toUpperCase() + navBowType.slice(1) : '';
+  main.innerHTML = `
+    <button class="back-btn" onclick="navBowType=null;navDiv=null;selectedDiv=null;render()">← Bow type</button>
+    <div class="nav-section-label">${bowLabel} · Choose division</div>
     <div class="division-grid">
-      ${ALL_DIVS.map(d => `
+      ${divs.map(d => `
         <div class="div-card${navDiv === d.id ? ' selected' : ''}" onclick="selectNavDiv('${d.id}')">
-          <div class="div-type">${d.type}</div>
-          <div class="div-name">${d.name}</div>
+          <div class="div-name" style="font-size:16px">${d.name}</div>
           <div class="div-sub">${d.sub}</div>
         </div>`).join('')}
     </div>`;
@@ -289,6 +338,20 @@ function selectNavDiv(id) {
   selectedDiv = id;
   render();
 }
+
+// Master division lookup for getDataForDiv (flat list of all known ids)
+const ALL_DIV_IDS = [
+  'recurve_women','recurve_men',
+  'recurve_u21_women','recurve_u21_men',
+  'recurve_u15_women','recurve_u15_men',
+  'recurve_u13_women','recurve_u13_men',
+  'recurve_women_team','recurve_men_team','recurve_mixed_team',
+  'compound_women','compound_men',
+  'compound_u21_women','compound_u21_men',
+  'compound_women_team','compound_men_team','compound_mixed_team',
+  'barebow_women','barebow_men',
+  'barebow_women_team','barebow_men_team','barebow_mixed_team',
+];
 
 // Confirm start screen — shown after division + event are both chosen
 function renderConfirmStart(main) {
@@ -346,6 +409,7 @@ function goHome() {
   state = null;
   selectedDiv = null;
   navDiv = null;
+  navBowType = null;
   navCategory = null;
   navEvent = null;
   render();
@@ -354,6 +418,11 @@ function restartSame() {
   const id = state.div;
   selectedDiv = id;
   navDiv = id;
+  if (!navBowType) {
+    if (id.startsWith('compound')) navBowType = 'compound';
+    else if (id.startsWith('barebow')) navBowType = 'barebow';
+    else navBowType = 'recurve';
+  }
   startTournament();
 }
 
@@ -731,7 +800,8 @@ function renderShootoff(main) {
 }
 
 function isCompoundType(d) {
-  return d.type === 'compound' || d.type === 'compound_team' || d.type === 'compound_mixed';
+  return ['compound','compound_team','compound_mixed',
+          'compound_u21'].includes(d.type);
 }
 
 function confirmSO() {
@@ -1031,7 +1101,7 @@ function backBtn() {
 }
 
 function navHome() {
-  state = null; selectedDiv = null; navDiv = null; navEvent = null; navCategory = null; render();
+  state = null; selectedDiv = null; navDiv = null; navBowType = null; navEvent = null; navCategory = null; render();
 }
 
 function roundBanner(round, idx, total) {
