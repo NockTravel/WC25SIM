@@ -83,7 +83,9 @@ let selectedDiv = null;
 let state = null;
 
 function isRecurveType(d) {
-  return d.type === 'recurve' || d.type === 'recurve_team' || d.type === 'recurve_mixed';
+  // barebow follows identical set-point rules to recurve
+  return d.type === 'recurve' || d.type === 'recurve_team' || d.type === 'recurve_mixed'
+      || d.type === 'barebow'  || d.type === 'barebow_team'  || d.type === 'barebow_mixed';
 }
 
 function arrowsPerSetEnd(d) {
@@ -225,6 +227,11 @@ function renderDivisionPicker(main) {
     { id:'compound_women_team', type:'Compound', name:'Women Team', sub:'Team · Total score'       },
     { id:'compound_men_team',   type:'Compound', name:'Men Team',   sub:'Team · Total score'       },
     { id:'compound_mixed_team', type:'Compound', name:'Mixed Team', sub:'Mixed · Total score'      },
+    { id:'barebow_women',       type:'Barebow',  name:'Women',      sub:'Individual · Set points'  },
+    { id:'barebow_men',         type:'Barebow',  name:'Men',        sub:'Individual · Set points'  },
+    { id:'barebow_women_team',  type:'Barebow',  name:'Women Team', sub:'Team · Set points'        },
+    { id:'barebow_men_team',    type:'Barebow',  name:'Men Team',   sub:'Team · Set points'        },
+    { id:'barebow_mixed_team',  type:'Barebow',  name:'Mixed Team', sub:'Mixed · Set points'       },
   ];
   main.innerHTML = `
     <button class="back-btn" onclick="navEvent=null;selectedDiv=null;render()">← ${window.EVENT_MANIFEST[navCategory].label}</button>
