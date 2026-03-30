@@ -88,7 +88,7 @@ let state = null;
 function isRecurveType(d) {
   // barebow and junior recurve follow identical set-point rules
   return ['recurve','recurve_team','recurve_mixed',
-          'recurve_u21','recurve_u15','recurve_u13',
+          'recurve_u21','recurve_u15','recurve_u13','recurve_u18','recurve_50plus',
           'barebow','barebow_team','barebow_mixed'].includes(d.type);
 }
 
@@ -104,7 +104,7 @@ function arrowsPerSetEnd(d) {
 
 function maxSetsEnds(d) {
   // Team matches are 4 sets/ends; individual are 5
-  const individual = ['recurve','compound','recurve_u21','recurve_u15','recurve_u13','compound_u21','barebow'];
+  const individual = ['recurve','compound','recurve_u21','recurve_u15','recurve_u13','recurve_u18','recurve_50plus','compound_u21','compound_50plus','barebow'];
   return individual.includes(d.type) ? 5 : 4;
 }
 
@@ -296,6 +296,10 @@ function renderDivisionPicker(main) {
       { id:'recurve_u15_men',    name:'U15 Men',    sub:'Individual · Set points' },
       { id:'recurve_u13_women',  name:'U13 Women',  sub:'Individual · Set points' },
       { id:'recurve_u13_men',    name:'U13 Men',    sub:'Individual · Set points' },
+      { id:'recurve_u18_women',  name:'U17/U18 Women', sub:'Individual · Set points' },
+      { id:'recurve_u18_men',    name:'U17/U18 Men',   sub:'Individual · Set points' },
+      { id:'recurve_50plus_women', name:'50+ Women', sub:'Individual · Set points' },
+      { id:'recurve_50plus_men',   name:'50+ Men',   sub:'Individual · Set points' },
       { id:'recurve_women_team', name:'Women Team', sub:'Team · Set points'       },
       { id:'recurve_men_team',   name:'Men Team',   sub:'Team · Set points'       },
       { id:'recurve_mixed_team', name:'Mixed Team', sub:'Mixed · Set points'      },
@@ -305,6 +309,8 @@ function renderDivisionPicker(main) {
       { id:'compound_men',        name:'Men',        sub:'Individual · Total score' },
       { id:'compound_u21_women',  name:'U21 Women',  sub:'Individual · Total score' },
       { id:'compound_u21_men',    name:'U21 Men',    sub:'Individual · Total score' },
+      { id:'compound_50plus_women', name:'50+ Women', sub:'Individual · Total score' },
+      { id:'compound_50plus_men',   name:'50+ Men',   sub:'Individual · Total score' },
       { id:'compound_women_team', name:'Women Team', sub:'Team · Total score'       },
       { id:'compound_men_team',   name:'Men Team',   sub:'Team · Total score'       },
       { id:'compound_mixed_team', name:'Mixed Team', sub:'Mixed · Total score'      },
@@ -801,7 +807,7 @@ function renderShootoff(main) {
 
 function isCompoundType(d) {
   return ['compound','compound_team','compound_mixed',
-          'compound_u21'].includes(d.type);
+          'compound_u21','compound_50plus'].includes(d.type);
 }
 
 function confirmSO() {
