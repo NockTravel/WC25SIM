@@ -1,5 +1,4 @@
 // Event manifest — defines the landing page structure
-// Each event lists the data files to lazy-load and the namespace those files set on window
 
 window.EVENT_MANIFEST = {
 
@@ -16,7 +15,13 @@ window.EVENT_MANIFEST = {
           'data/events/outdoor/2025-worlds-outdoor-teams.js'
         ],
         individualKey: 'DATA_INDIVIDUAL',
-        teamsKey: 'DATA_TEAMS'
+        teamsKey: 'DATA_TEAMS',
+        divisions: [
+          'recurve_women','recurve_men',
+          'compound_women','compound_men',
+          'recurve_women_team','recurve_men_team','recurve_mixed_team',
+          'compound_women_team','compound_men_team','compound_mixed_team'
+        ]
       },
       {
         id: '2025-asia-cup-1',
@@ -27,7 +32,13 @@ window.EVENT_MANIFEST = {
           'data/events/outdoor/2025-asia-cup-1-outdoor-teams.js'
         ],
         individualKey: 'DATA_ASIA_CUP_1_INDIVIDUAL',
-        teamsKey: 'DATA_ASIA_CUP_1_TEAMS'
+        teamsKey: 'DATA_ASIA_CUP_1_TEAMS',
+        divisions: [
+          'recurve_women','recurve_men',
+          'compound_women','compound_men',
+          'recurve_women_team','recurve_men_team','recurve_mixed_team',
+          'compound_women_team','compound_men_team','compound_mixed_team'
+        ]
       },
       {
         id: '2025-nationals',
@@ -38,7 +49,15 @@ window.EVENT_MANIFEST = {
           'data/events/outdoor/2025-nationals-outdoor-teams.js'
         ],
         individualKey: 'DATA_NATIONALS_INDIVIDUAL',
-        teamsKey: 'DATA_NATIONALS_TEAMS'
+        teamsKey: 'DATA_NATIONALS_TEAMS',
+        divisions: [
+          'recurve_women','recurve_men',
+          'compound_women','compound_men',
+          'recurve_women_team','recurve_men_team','recurve_mixed_team',
+          'compound_women_team','compound_men_team','compound_mixed_team',
+          'barebow_women','barebow_men',
+          'barebow_women_team','barebow_men_team','barebow_mixed_team'
+        ]
       }
     ]
   },
