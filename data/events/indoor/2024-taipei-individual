@@ -2,7 +2,7 @@
 // Taipei · 6-8 Dec 2024
 // Individual events — all recurve set format, compound cumulative
 
-window.DATA_TAIPEI_INDIVIDUAL = {
+window.DATA_TAIPEI_2024_INDIVIDUAL = {
 
   // ─── RECURVE WOMEN ───────────────────────────────────────────────────────
   recurve_women: {
