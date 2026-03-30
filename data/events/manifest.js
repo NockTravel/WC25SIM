@@ -83,9 +83,20 @@ window.EVENT_MANIFEST = {
       {
         id: '2025-taipei',
         label: 'Taipei Archery Open 2025',
-        sub: 'Coming soon',
-        files: [],
-        comingSoon: true
+        sub: 'Taipei · Dec 2025',
+        files: [
+          'data/events/indoor/2025-taipei-individual.js'
+        ],
+        individualKey: 'DATA_TAIPEI_INDIVIDUAL',
+        teamsKey: null,
+        divisions: [
+          'recurve_women','recurve_men',
+          'recurve_u21_women','recurve_u21_men',
+          'recurve_u15_women','recurve_u15_men',
+          'recurve_u13_women','recurve_u13_men',
+          'compound_women','compound_men',
+          'compound_u21_women','compound_u21_men'
+        ]
       },
       {
         id: '2026-nimes',
