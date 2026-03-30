@@ -1,5 +1,10 @@
-// Gwangju 2025 World Archery Championships — Tournament Simulator
+// Archery Tournament Simulator
 // app.js — all game logic
+
+// ─── NAVIGATION STATE ────────────────────────────────────────────────────────
+let navCategory = null;   // 'outdoor' | 'field' | 'indoor'
+let navEvent    = null;   // event object from manifest
+let loadedFiles = {};     // tracks which data files have been injected
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function rand(arr) {
@@ -107,7 +112,13 @@ function $(id) { return document.getElementById(id); }
 
 function render() {
   const main = $('main');
-  if (!state) { renderDivisionPicker(main); return; }
+  // Navigation layers before tournament starts
+  if (!state) {
+    if (!navCategory) { renderLanding(main); return; }
+    if (!navEvent)     { renderCategoryPicker(main); return; }
+    renderDivisionPicker(main);
+    return;
+  }
   switch (state.phase) {
     case 'playing':      renderPlaying(main); break;
     case 'shootoff':     renderShootoff(main); break;
@@ -119,6 +130,86 @@ function render() {
     case 'gold':         renderMedal('gold', main); break;
     case 'eliminated':   renderEliminated(main); break;
   }
+}
+
+// ─── LANDING PAGE ─────────────────────────────────────────────────────────────
+function renderLanding(main) {
+  const m = window.EVENT_MANIFEST;
+  if (!m) { main.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">Loading...</p>'; return; }
+  const cats = Object.entries(m);
+  main.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${cats.map(([key, cat]) => `
+        <div class="nav-card" onclick="selectCategory('${key}')">
+          <span class="nav-icon">${cat.icon}</span>
+          <div>
+            <div class="nav-name">${cat.label}</div>
+            <div class="nav-sub">${cat.events.filter(e=>!e.comingSoon).length} event${cat.events.filter(e=>!e.comingSoon).length!==1?'s':''} available · ${cat.events.filter(e=>e.comingSoon).length} coming soon</div>
+          </div>
+          <span class="nav-arrow">›</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function selectCategory(key) {
+  navCategory = key;
+  render();
+}
+
+// ─── CATEGORY / EVENT PICKER ───────────────────────────────────────────────
+function renderCategoryPicker(main) {
+  const cat = window.EVENT_MANIFEST[navCategory];
+  main.innerHTML = `
+    <button class="back-btn" onclick="navCategory=null;render()">← Disciplines</button>
+    <div class="nav-section-label">${cat.icon} ${cat.label}</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${cat.events.map(ev => {
+        const click = ev.comingSoon ? '' : `onclick="selectEvent('${ev.id}')"`;
+        const badge = ev.comingSoon
+          ? '<span style="font-size:11px;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:0.08em">SOON</span>'
+          : '<span class="nav-arrow">›</span>';
+        const dimCls = ev.comingSoon ? ' nav-card-dim' : '';
+        return `<div class="nav-card${dimCls}" ${click}>
+          <div style="flex:1">
+            <div class="nav-name">${ev.label}</div>
+            <div class="nav-sub">${ev.sub}</div>
+          </div>
+          ${badge}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function selectEvent(eventId) {
+  const cat = window.EVENT_MANIFEST[navCategory];
+  const ev = cat.events.find(e => e.id === eventId);
+  if (!ev || ev.comingSoon) return;
+  navEvent = ev;
+  selectedDiv = null;
+  // Lazy-load data files then render division picker
+  loadEventFiles(ev, () => render());
+}
+
+function loadEventFiles(ev, callback) {
+  if (!ev.files || ev.files.length === 0) { callback(); return; }
+  let remaining = ev.files.filter(f => !loadedFiles[f]).length;
+  if (remaining === 0) { callback(); return; }
+  ev.files.forEach(f => {
+    if (loadedFiles[f]) return;
+    const s = document.createElement('script');
+    s.src = f;
+    s.onload = () => {
+      loadedFiles[f] = true;
+      remaining--;
+      if (remaining === 0) callback();
+    };
+    s.onerror = () => {
+      console.error('Failed to load', f);
+      remaining--;
+      if (remaining === 0) callback();
+    };
+    document.body.appendChild(s);
+  });
 }
 
 // ─── DIVISION PICKER ──────────────────────────────────────────────────────────
@@ -136,6 +227,8 @@ function renderDivisionPicker(main) {
     { id:'compound_mixed_team', type:'Compound', name:'Mixed Team', sub:'Mixed · Total score'      },
   ];
   main.innerHTML = `
+    <button class="back-btn" onclick="navEvent=null;selectedDiv=null;render()">← ${window.EVENT_MANIFEST[navCategory].label}</button>
+    <div class="nav-section-label" style="margin-bottom:12px">${navEvent ? navEvent.label : ''}</div>
     <div class="division-grid">
       ${divs.map(d => `
         <div class="div-card${selectedDiv === d.id ? ' selected' : ''}" onclick="selectDiv('${d.id}')">
@@ -152,13 +245,20 @@ function renderDivisionPicker(main) {
 function selectDiv(id) { selectedDiv = id; render(); }
 
 function getDataForDiv(id) {
+  // Use event-namespaced data if available, fall back to global
+  const ev = navEvent;
+  if (ev) {
+    const iKey = ev.individualKey || 'DATA_INDIVIDUAL';
+    const tKey = ev.teamsKey || 'DATA_TEAMS';
+    if (window[iKey] && window[iKey][id]) return window[iKey][id];
+    if (window[tKey] && window[tKey][id]) return window[tKey][id];
+  }
   if (window.DATA_INDIVIDUAL && window.DATA_INDIVIDUAL[id]) return window.DATA_INDIVIDUAL[id];
   if (window.DATA_TEAMS && window.DATA_TEAMS[id]) return window.DATA_TEAMS[id];
   return null;
 }
 
 function initMatchState() {
-  // arrows entered this set/end
   state.arrows = [];
   state.arrowTarget = arrowsPerSetEnd(state.data);
 }
@@ -166,7 +266,7 @@ function initMatchState() {
 function startTournament() {
   if (!selectedDiv) return;
   const data = getDataForDiv(selectedDiv);
-  if (!data) { alert('Data not loaded — check data/individual.js and data/teams.js exist in your repo.'); return; }
+  if (!data) { alert('Data not loaded — please try again.'); return; }
   state = {
     div: selectedDiv, data,
     roundIdx: 0,
@@ -186,7 +286,11 @@ function startTournament() {
   render();
 }
 
-function goHome() { state = null; render(); }
+function goHome() {
+  state = null;
+  selectedDiv = null;
+  render();
+}
 function restartSame() { const id = state.div; selectedDiv = id; startTournament(); }
 
 // ─── PLAYING ──────────────────────────────────────────────────────────────────
@@ -860,6 +964,10 @@ function buildScoreDetail(r) {
 // ─── SHARED UI ────────────────────────────────────────────────────────────────
 function backBtn() {
   return `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+}
+
+function navHome() {
+  state = null; selectedDiv = null; navEvent = null; navCategory = null; render();
 }
 
 function roundBanner(round, idx, total) {
