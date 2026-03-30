@@ -32,9 +32,13 @@ window.EVENT_MANIFEST = {
       {
         id: '2025-nationals',
         label: '2025 Nationals',
-        sub: 'Coming soon',
-        files: [],
-        comingSoon: true
+        sub: 'AIS Canberra, Australia · Nov 2025',
+        files: [
+          'data/events/outdoor/2025-nationals-outdoor-individual.js',
+          'data/events/outdoor/2025-nationals-outdoor-teams.js'
+        ],
+        individualKey: 'DATA_NATIONALS_INDIVIDUAL',
+        teamsKey: 'DATA_NATIONALS_TEAMS'
       }
     ]
   },
