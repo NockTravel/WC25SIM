@@ -3,8 +3,10 @@
 
 // ─── NAVIGATION STATE ────────────────────────────────────────────────────────
 let navCategory = null;   // 'outdoor' | 'field' | 'indoor'
+let navDiv      = null;   // selected division id before event is chosen
 let navEvent    = null;   // event object from manifest
 let loadedFiles = {};     // tracks which data files have been injected
+let authed      = false;  // soft password gate
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function rand(arr) {
@@ -116,9 +118,11 @@ function render() {
   const main = $('main');
   // Navigation layers before tournament starts
   if (!state) {
-    if (!navCategory) { renderLanding(main); return; }
+    if (!authed)       { renderPasswordGate(main); return; }
+    if (!navDiv)       { renderDivisionPicker(main); return; }
+    if (!navCategory)  { renderLanding(main); return; }
     if (!navEvent)     { renderCategoryPicker(main); return; }
-    renderDivisionPicker(main);
+    renderConfirmStart(main);
     return;
   }
   switch (state.phase) {
@@ -135,18 +139,50 @@ function render() {
 }
 
 // ─── LANDING PAGE ─────────────────────────────────────────────────────────────
+function renderPasswordGate(main) {
+  main.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 16px;gap:16px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:600;color:var(--gold);letter-spacing:0.08em;text-transform:uppercase;">Archery Simulator</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Enter password to continue</div>
+      <input id="pw-input" type="password" placeholder="Password"
+        style="background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--text);font-size:15px;width:200px;text-align:center;outline:none;"
+        onkeydown="if(event.key==='Enter')checkPassword()" />
+      <div id="pw-error" style="font-size:12px;color:var(--loss);height:16px;"></div>
+      <button class="start-btn" style="margin-top:0" onclick="checkPassword()">Enter →</button>
+    </div>`;
+  setTimeout(() => { const el = document.getElementById('pw-input'); if (el) el.focus(); }, 50);
+}
+
+function checkPassword() {
+  const val = (document.getElementById('pw-input') || {}).value || '';
+  if (val.toLowerCase() === 'thanksryan') {
+    authed = true;
+    render();
+  } else {
+    const err = document.getElementById('pw-error');
+    if (err) err.textContent = 'Incorrect password';
+  }
+}
+
 function renderLanding(main) {
   const m = window.EVENT_MANIFEST;
   if (!m) { main.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">Loading...</p>'; return; }
   const cats = Object.entries(m);
+  // Filter categories that have at least one event with this division
+  const visibleCats = cats.filter(([key, cat]) =>
+    cat.events.some(ev => !ev.comingSoon && ev.divisions && ev.divisions.includes(navDiv))
+    || cat.events.some(ev => !ev.comingSoon && !ev.divisions)
+  );
   main.innerHTML = `
+    <button class="back-btn" onclick="navDiv=null;selectedDiv=null;render()">← Divisions</button>
+    <div class="nav-section-label" style="margin-bottom:8px">Choose discipline</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
-      ${cats.map(([key, cat]) => `
+      ${visibleCats.map(([key, cat]) => `
         <div class="nav-card" onclick="selectCategory('${key}')">
           <span class="nav-icon">${cat.icon}</span>
           <div>
             <div class="nav-name">${cat.label}</div>
-            <div class="nav-sub">${cat.events.filter(e=>!e.comingSoon).length} event${cat.events.filter(e=>!e.comingSoon).length!==1?'s':''} available · ${cat.events.filter(e=>e.comingSoon).length} coming soon</div>
+            <div class="nav-sub">${cat.events.filter(e=>!e.comingSoon && e.divisions && e.divisions.includes(navDiv)).length} event${cat.events.filter(e=>!e.comingSoon && e.divisions && e.divisions.includes(navDiv)).length!==1?'s':''} available</div>
           </div>
           <span class="nav-arrow">›</span>
         </div>`).join('')}
@@ -166,11 +202,13 @@ function renderCategoryPicker(main) {
     <div class="nav-section-label">${cat.icon} ${cat.label}</div>
     <div style="display:flex;flex-direction:column;gap:10px;">
       ${cat.events.map(ev => {
-        const click = ev.comingSoon ? '' : `onclick="selectEvent('${ev.id}')"`;
-        const badge = ev.comingSoon
-          ? '<span style="font-size:11px;color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;letter-spacing:0.08em">SOON</span>'
+        const hasDiv = !navDiv || !ev.divisions || ev.divisions.includes(navDiv);
+        const unavail = !ev.comingSoon && !hasDiv;
+        const click = (ev.comingSoon || unavail) ? '' : `onclick="selectEvent('${ev.id}')"`;
+        const badge = ev.comingSoon || unavail
+          ? `<span style="font-size:11px;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:0.08em">${ev.comingSoon ? 'SOON' : 'N/A'}</span>`
           : '<span class="nav-arrow">›</span>';
-        const dimCls = ev.comingSoon ? ' nav-card-dim' : '';
+        const dimCls = (ev.comingSoon || unavail) ? ' nav-card-dim' : '';
         return `<div class="nav-card${dimCls}" ${click}>
           <div style="flex:1">
             <div class="nav-name">${ev.label}</div>
@@ -187,8 +225,7 @@ function selectEvent(eventId) {
   const ev = cat.events.find(e => e.id === eventId);
   if (!ev || ev.comingSoon) return;
   navEvent = ev;
-  selectedDiv = null;
-  // Lazy-load data files then render division picker
+  selectedDiv = navDiv; // already chosen at start
   loadEventFiles(ev, () => render());
 }
 
@@ -233,25 +270,35 @@ function renderDivisionPicker(main) {
     { id:'barebow_men_team',    type:'Barebow',  name:'Men Team',   sub:'Team · Set points'        },
     { id:'barebow_mixed_team',  type:'Barebow',  name:'Mixed Team', sub:'Mixed · Set points'       },
   ];
-  const allowed = navEvent && navEvent.divisions;
-  const divs = allowed ? ALL_DIVS.filter(d => allowed.includes(d.id)) : ALL_DIVS;
   main.innerHTML = `
-    <button class="back-btn" onclick="navEvent=null;selectedDiv=null;render()">← ${window.EVENT_MANIFEST[navCategory].label}</button>
-    <div class="nav-section-label" style="margin-bottom:12px">${navEvent ? navEvent.label : ''}</div>
+    <div class="nav-section-label">Choose your division</div>
     <div class="division-grid">
-      ${divs.map(d => `
-        <div class="div-card${selectedDiv === d.id ? ' selected' : ''}" onclick="selectDiv('${d.id}')">
+      ${ALL_DIVS.map(d => `
+        <div class="div-card${navDiv === d.id ? ' selected' : ''}" onclick="selectNavDiv('${d.id}')">
           <div class="div-type">${d.type}</div>
           <div class="div-name">${d.name}</div>
           <div class="div-sub">${d.sub}</div>
         </div>`).join('')}
-    </div>
-    <button class="start-btn" ${!selectedDiv ? 'disabled' : ''} onclick="startTournament()">
-      Enter the Tournament →
-    </button>`;
+    </div>`;
 }
 
-function selectDiv(id) { selectedDiv = id; render(); }
+function selectNavDiv(id) {
+  navDiv = id;
+  navCategory = null;
+  navEvent = null;
+  selectedDiv = id;
+  render();
+}
+
+// Confirm start screen — shown after division + event are both chosen
+function renderConfirmStart(main) {
+  const cat = window.EVENT_MANIFEST[navCategory];
+  main.innerHTML = `
+    <button class="back-btn" onclick="navEvent=null;render()">← ${cat.label}</button>
+    <div class="nav-section-label" style="margin-bottom:4px">${navEvent.label}</div>
+    <div style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:20px;">${navEvent.sub}</div>
+    <button class="start-btn" onclick="startTournament()">Enter the Tournament →</button>`;
+}
 
 function getDataForDiv(id) {
   // Use event-namespaced data if available, fall back to global
@@ -298,9 +345,17 @@ function startTournament() {
 function goHome() {
   state = null;
   selectedDiv = null;
+  navDiv = null;
+  navCategory = null;
+  navEvent = null;
   render();
 }
-function restartSame() { const id = state.div; selectedDiv = id; startTournament(); }
+function restartSame() {
+  const id = state.div;
+  selectedDiv = id;
+  navDiv = id;
+  startTournament();
+}
 
 // ─── PLAYING ──────────────────────────────────────────────────────────────────
 function renderPlaying(main) {
@@ -976,7 +1031,7 @@ function backBtn() {
 }
 
 function navHome() {
-  state = null; selectedDiv = null; navEvent = null; navCategory = null; render();
+  state = null; selectedDiv = null; navDiv = null; navEvent = null; navCategory = null; render();
 }
 
 function roundBanner(round, idx, total) {
