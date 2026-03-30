@@ -87,7 +87,7 @@ window.EVENT_MANIFEST = {
         files: [
           'data/events/indoor/2025-taipei-individual.js'
         ],
-        individualKey: 'DATA_TAIPEI_INDIVIDUAL',
+        individualKey: 'DATA_TAIPEI_2025_INDIVIDUAL',
         teamsKey: null,
         divisions: [
           'recurve_women','recurve_men',
@@ -96,6 +96,25 @@ window.EVENT_MANIFEST = {
           'recurve_u13_women','recurve_u13_men',
           'compound_women','compound_men',
           'compound_u21_women','compound_u21_men'
+        ]
+      },
+      {
+        id: '2024-taipei',
+        label: 'Taipei Archery Open 2024',
+        sub: 'Taipei · Dec 2024',
+        files: [
+          'data/events/indoor/2024-taipei-individual.js'
+        ],
+        individualKey: 'DATA_TAIPEI_2024_INDIVIDUAL',
+        teamsKey: null,
+        divisions: [
+          'recurve_women','recurve_men',
+          'recurve_u21_women','recurve_u21_men',
+          'recurve_u15_women','recurve_u15_men',
+          'recurve_u13_women','recurve_u13_men',
+          'compound_women','compound_men',
+          'compound_u21_women','compound_u21_men',
+          'barebow_women','barebow_men'
         ]
       },
       {
