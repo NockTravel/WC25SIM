@@ -216,7 +216,7 @@ function loadEventFiles(ev, callback) {
 
 // ─── DIVISION PICKER ──────────────────────────────────────────────────────────
 function renderDivisionPicker(main) {
-  const divs = [
+  const ALL_DIVS = [
     { id:'recurve_women',       type:'Recurve',  name:'Women',      sub:'Individual · Set points'  },
     { id:'recurve_men',         type:'Recurve',  name:'Men',        sub:'Individual · Set points'  },
     { id:'compound_women',      type:'Compound', name:'Women',      sub:'Individual · Total score' },
@@ -233,6 +233,8 @@ function renderDivisionPicker(main) {
     { id:'barebow_men_team',    type:'Barebow',  name:'Men Team',   sub:'Team · Set points'        },
     { id:'barebow_mixed_team',  type:'Barebow',  name:'Mixed Team', sub:'Mixed · Set points'       },
   ];
+  const allowed = navEvent && navEvent.divisions;
+  const divs = allowed ? ALL_DIVS.filter(d => allowed.includes(d.id)) : ALL_DIVS;
   main.innerHTML = `
     <button class="back-btn" onclick="navEvent=null;selectedDiv=null;render()">← ${window.EVENT_MANIFEST[navCategory].label}</button>
     <div class="nav-section-label" style="margin-bottom:12px">${navEvent ? navEvent.label : ''}</div>
