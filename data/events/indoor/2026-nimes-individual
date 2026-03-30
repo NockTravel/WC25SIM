@@ -179,7 +179,7 @@ window.DATA_NIMES_2026_INDIVIDUAL = {
   // ─── RECURVE U18 WOMEN ───────────────────────────────────────────────────
   recurve_u18_women: {
     type: 'recurve_u18',
-    label: 'Recurve U18 Women',
+    label: 'Recurve U17/U18 Women',
     rounds: [
       { key:'r1', label:'Round 1', sub:'1/8 Elimination' },
       { key:'qf', label:'Quarterfinal', sub:'Top 8' },
@@ -218,7 +218,7 @@ window.DATA_NIMES_2026_INDIVIDUAL = {
   // ─── RECURVE U18 MEN ─────────────────────────────────────────────────────
   recurve_u18_men: {
     type: 'recurve_u18',
-    label: 'Recurve U18 Men',
+    label: 'Recurve U17/U18 Men',
     rounds: [
       { key:'r1', label:'Round 1', sub:'1/8 Elimination' },
       { key:'qf', label:'Quarterfinal', sub:'Top 8' },
