@@ -16,7 +16,7 @@
 (function () {
   window.DIV_2025_asia_cup_1_recurve_men = {
 
-    label: 'Recurve Women',
+    label: 'Recurve Men',
 
     rounds: [
       { key: 'r1', label: 'Round 1',      sub: '1/48 Elimination' },
