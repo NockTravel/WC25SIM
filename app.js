@@ -713,33 +713,40 @@ function confirmSO() {
   const myPtsKey  = state.inBronze ? 'bMyPts'  : 'myPts';
   const oppPtsKey = state.inBronze ? 'bOppPts' : 'oppPts';
 
-  if (rules.soArrows === 1) {
-    // Individual SO — single arrow, compare values, 50/50 if tied
-    const myRaw = arrows[0];
-    state.soMyRaw = myRaw;
-    const oppRaw = state.soOppRaw;
-    if (arrowScore(myRaw) > oppRaw)      { state[myPtsKey]++; }
-    else if (arrowScore(myRaw) < oppRaw) { state[oppPtsKey]++; }
+  // SO resolution helper — X=10 for scoring, but X beats 10 in a tie,
+  // and 50/50 only when neither side has an advantage.
+  function resolveSOTie(myArrows, oppArrows) {
+    const myHasX  = myArrows.some(v => v === 11);
+    const oppHasX = oppArrows.some(v => v === 11);
+    if (myHasX && !oppHasX)  { state[myPtsKey]++; }
+    else if (!myHasX && oppHasX) { state[oppPtsKey]++; }
     else {
-      // tied value — 50/50
+      // Both have X or neither does — 50/50
       if (Math.random() < 0.5) state[myPtsKey]++; else state[oppPtsKey]++;
     }
+  }
+
+  if (rules.soArrows === 1) {
+    const myRaw  = arrows[0];
+    state.soMyRaw = myRaw;
+    const oppRaw = state.soOppRaw;
+    const myScore  = arrowScore(myRaw);
+    const oppScore = oppRaw; // opponent SO values are already numeric (never 11)
+    if (myScore > oppScore)      { state[myPtsKey]++; }
+    else if (myScore < oppScore) { state[oppPtsKey]++; }
+    else { resolveSOTie([myRaw], [oppRaw]); }
   } else {
-    // Multi-arrow SO — compare total, then closest single arrow on tie
+    // Multi-arrow SO — compare totals (X=10), then X tiebreak, then 50/50
     state.soMyArrows = [...arrows];
-    const myTotal   = arrows.reduce((s, v) => s + arrowScore(v), 0);
     const oppArrows = state.soOppArrows ||
       Array.from({ length: rules.soArrows }, () => rand([8,9,9,10,10,10]));
     state.soOppArrows = oppArrows;
-    const oppTotal = oppArrows.reduce((s, v) => s + v, 0);
+    const myTotal  = arrows.reduce((s, v) => s + arrowScore(v), 0);
+    const oppTotal = oppArrows.reduce((s, v) => s + arrowScore(v), 0);
 
     if (myTotal > oppTotal)      { state[myPtsKey]++; }
     else if (myTotal < oppTotal) { state[oppPtsKey]++; }
-    else {
-      const myBest  = Math.max(...arrows.map(arrowScore));
-      const oppBest = Math.max(...oppArrows);
-      if (myBest >= oppBest) state[myPtsKey]++; else state[oppPtsKey]++;
-    }
+    else { resolveSOTie(arrows, oppArrows); }
   }
 
   state.arrows = [];
