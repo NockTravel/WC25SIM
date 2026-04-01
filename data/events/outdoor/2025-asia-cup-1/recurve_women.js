@@ -33,10 +33,10 @@
       scoring: 'sets',         // set-point system
       arrowsPerSet: 3,         // 3 arrows per set
       numSets: 5,              // first to 6 pts (or most after 5 sets)
-      maxArrowVal: 10,         // standard outdoor target
-      allowX: true,            // X ring available
+      maxArrowVal: 10,         // max scoring value per arrow (X scores as 10)
+      allowX: true,            // X ring available in ends AND shoot-off
       soArrows: 1,             // single-arrow shoot-off
-      soMaxVal: 10,
+      soMaxVal: 10,            // X scores 10 but beats a 10 (handled internally as 11)
     },
 
     rounds: [
