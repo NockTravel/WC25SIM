@@ -1,5 +1,5 @@
 // ── ARCHERY TOURNAMENT SIMULATOR ─────────────────────────────────────────────
-// app.js — Build 1: Outdoor individual (recurve + compound)
+// app.js — Build 2: Outdoor + field teams and mixed teams
 // Rules are hardcoded in DIVISION_RULES below. Data files only supply scores.
 
 // ── DIVISION RULES ────────────────────────────────────────────────────────────
@@ -134,61 +134,99 @@ function getRules(divisionKey) {
 
 // ── BOW TYPE → DIVISION KEYS ──────────────────────────────────────────────────
 // Used for preflight checks — only check the sentinel division for the selected bow type.
+// Field events use field_-prefixed keys so the preflight must check those too.
 const BOW_SENTINELS = {
-  recurve:  ['recurve_women', 'recurve_men'],
-  compound: ['compound_women', 'compound_men'],
-  barebow:  ['barebow_women', 'barebow_men'],
+  recurve:  ['recurve_women',  'recurve_men',  'field_recurve_women',  'field_recurve_men'],
+  compound: ['compound_women', 'compound_men', 'field_compound_women', 'field_compound_men'],
+  barebow:  ['barebow_women',  'barebow_men',  'field_barebow_women',  'field_barebow_men'],
 };
 
 // ── DIVISION CATALOGUE ────────────────────────────────────────────────────────
 const DIVISION_CATALOGUE = {
   recurve: [
-    { id: 'recurve_women',       name: 'Women',        sub: 'Individual · Set points' },
-    { id: 'recurve_men',         name: 'Men',          sub: 'Individual · Set points' },
-    { id: 'recurve_u21_women',   name: 'U21 Women',    sub: 'Individual · Set points' },
-    { id: 'recurve_u21_men',     name: 'U21 Men',      sub: 'Individual · Set points' },
-    { id: 'recurve_u18_women',   name: 'U18 Women',    sub: 'Individual · Set points' },
-    { id: 'recurve_u18_men',     name: 'U18 Men',      sub: 'Individual · Set points' },
-    { id: 'recurve_u15_women',   name: 'U15 Women',    sub: 'Individual · Set points' },
-    { id: 'recurve_u15_men',     name: 'U15 Men',      sub: 'Individual · Set points' },
-    { id: 'recurve_u13_women',   name: 'U13 Women',    sub: 'Individual · Set points' },
-    { id: 'recurve_u13_men',     name: 'U13 Men',      sub: 'Individual · Set points' },
-    { id: 'recurve_50plus_women',name: '50+ Women',    sub: 'Individual · Set points' },
-    { id: 'recurve_50plus_men',  name: '50+ Men',      sub: 'Individual · Set points' },
-    { id: 'recurve_mixed_team',  name: 'Mixed Team',   sub: '1M+1W · Set points' },
-    { id: 'recurve_women_team',  name: 'Women Team',   sub: '3 archer · Set points' },
-    { id: 'recurve_men_team',    name: 'Men Team',     sub: '3 archer · Set points' },
-    { id: 'recurve_u21_mixed_team', name: 'U21 Mixed Team', sub: '1M+1W · Set points' },
+    // Outdoor / indoor individual
+    { id: 'recurve_women',          name: 'Women',             sub: 'Individual · Set points' },
+    { id: 'recurve_men',            name: 'Men',               sub: 'Individual · Set points' },
+    { id: 'recurve_u21_women',      name: 'U21 Women',         sub: 'Individual · Set points' },
+    { id: 'recurve_u21_men',        name: 'U21 Men',           sub: 'Individual · Set points' },
+    { id: 'recurve_u18_women',      name: 'U18 Women',         sub: 'Individual · Set points' },
+    { id: 'recurve_u18_men',        name: 'U18 Men',           sub: 'Individual · Set points' },
+    { id: 'recurve_u15_women',      name: 'U15 Women',         sub: 'Individual · Set points' },
+    { id: 'recurve_u15_men',        name: 'U15 Men',           sub: 'Individual · Set points' },
+    { id: 'recurve_u13_women',      name: 'U13 Women',         sub: 'Individual · Set points' },
+    { id: 'recurve_u13_men',        name: 'U13 Men',           sub: 'Individual · Set points' },
+    { id: 'recurve_50plus_women',   name: '50+ Women',         sub: 'Individual · Set points' },
+    { id: 'recurve_50plus_men',     name: '50+ Men',           sub: 'Individual · Set points' },
+    // Outdoor / indoor team
+    { id: 'recurve_mixed_team',     name: 'Mixed Team',        sub: '1M+1W · Set points' },
+    { id: 'recurve_women_team',     name: 'Women Team',        sub: '3 archer · Set points' },
+    { id: 'recurve_men_team',       name: 'Men Team',          sub: '3 archer · Set points' },
+    { id: 'recurve_u21_mixed_team', name: 'U21 Mixed Team',    sub: '1M+1W · Set points' },
+    // Field individual
+    { id: 'field_recurve_women',    name: 'Field Women',       sub: 'Individual · Total score' },
+    { id: 'field_recurve_men',      name: 'Field Men',         sub: 'Individual · Total score' },
+    { id: 'field_recurve_u21_women',name: 'Field U21 Women',   sub: 'Individual · Total score' },
+    { id: 'field_recurve_u21_men',  name: 'Field U21 Men',     sub: 'Individual · Total score' },
+    { id: 'field_recurve_u18_women',name: 'Field U18 Women',   sub: 'Individual · Total score' },
+    { id: 'field_recurve_u18_men',  name: 'Field U18 Men',     sub: 'Individual · Total score' },
+    // Field team
+    { id: 'field_recurve_mixed_team',     name: 'Field Mixed Team',     sub: '1M+1W · Total score' },
+    { id: 'field_recurve_u21_mixed_team', name: 'Field U21 Mixed Team', sub: '1M+1W · Total score' },
   ],
   compound: [
-    { id: 'compound_women',          name: 'Women',          sub: 'Individual · Total score' },
-    { id: 'compound_men',            name: 'Men',            sub: 'Individual · Total score' },
-    { id: 'compound_u21_women',      name: 'U21 Women',      sub: 'Individual · Total score' },
-    { id: 'compound_u21_men',        name: 'U21 Men',        sub: 'Individual · Total score' },
-    { id: 'compound_u18_women',      name: 'U18 Women',      sub: 'Individual · Total score' },
-    { id: 'compound_u18_men',        name: 'U18 Men',        sub: 'Individual · Total score' },
-    { id: 'compound_50plus_women',   name: '50+ Women',      sub: 'Individual · Total score' },
-    { id: 'compound_50plus_men',     name: '50+ Men',        sub: 'Individual · Total score' },
-    { id: 'compound_mixed_team',     name: 'Mixed Team',     sub: '1M+1W · Total score' },
-    { id: 'compound_women_team',     name: 'Women Team',     sub: '3 archer · Total score' },
-    { id: 'compound_men_team',       name: 'Men Team',       sub: '3 archer · Total score' },
-    { id: 'compound_u21_mixed_team', name: 'U21 Mixed Team', sub: '1M+1W · Total score' },
+    // Outdoor / indoor individual
+    { id: 'compound_women',             name: 'Women',             sub: 'Individual · Total score' },
+    { id: 'compound_men',               name: 'Men',               sub: 'Individual · Total score' },
+    { id: 'compound_u21_women',         name: 'U21 Women',         sub: 'Individual · Total score' },
+    { id: 'compound_u21_men',           name: 'U21 Men',           sub: 'Individual · Total score' },
+    { id: 'compound_u18_women',         name: 'U18 Women',         sub: 'Individual · Total score' },
+    { id: 'compound_u18_men',           name: 'U18 Men',           sub: 'Individual · Total score' },
+    { id: 'compound_50plus_women',      name: '50+ Women',         sub: 'Individual · Total score' },
+    { id: 'compound_50plus_men',        name: '50+ Men',           sub: 'Individual · Total score' },
+    // Outdoor / indoor team
+    { id: 'compound_mixed_team',        name: 'Mixed Team',        sub: '1M+1W · Total score' },
+    { id: 'compound_women_team',        name: 'Women Team',        sub: '3 archer · Total score' },
+    { id: 'compound_men_team',          name: 'Men Team',          sub: '3 archer · Total score' },
+    { id: 'compound_u21_mixed_team',    name: 'U21 Mixed Team',    sub: '1M+1W · Total score' },
+    // Field individual
+    { id: 'field_compound_women',       name: 'Field Women',       sub: 'Individual · Total score' },
+    { id: 'field_compound_men',         name: 'Field Men',         sub: 'Individual · Total score' },
+    { id: 'field_compound_u21_women',   name: 'Field U21 Women',   sub: 'Individual · Total score' },
+    { id: 'field_compound_u21_men',     name: 'Field U21 Men',     sub: 'Individual · Total score' },
+    { id: 'field_compound_u18_women',   name: 'Field U18 Women',   sub: 'Individual · Total score' },
+    { id: 'field_compound_u18_men',     name: 'Field U18 Men',     sub: 'Individual · Total score' },
+    // Field team
+    { id: 'field_compound_mixed_team',     name: 'Field Mixed Team',     sub: '1M+1W · Total score' },
+    { id: 'field_compound_u21_mixed_team', name: 'Field U21 Mixed Team', sub: '1M+1W · Total score' },
   ],
   barebow: [
-    { id: 'barebow_women',           name: 'Women',          sub: 'Individual · Set points' },
-    { id: 'barebow_men',             name: 'Men',            sub: 'Individual · Set points' },
-    { id: 'barebow_u21_women',       name: 'U21 Women',      sub: 'Individual · Set points' },
-    { id: 'barebow_u21_men',         name: 'U21 Men',        sub: 'Individual · Set points' },
-    { id: 'barebow_u18_women',       name: 'U18 Women',      sub: 'Individual · Set points' },
-    { id: 'barebow_u18_men',         name: 'U18 Men',        sub: 'Individual · Set points' },
-    { id: 'barebow_mixed_team',      name: 'Mixed Team',     sub: '1M+1W · Set points' },
-    { id: 'barebow_women_team',      name: 'Women Team',     sub: '3 archer · Set points' },
-    { id: 'barebow_men_team',        name: 'Men Team',       sub: '3 archer · Set points' },
-    { id: 'barebow_u21_mixed_team',  name: 'U21 Mixed Team', sub: '1M+1W · Set points' },
-    { id: 'mixed_bow_team_women',    name: 'Mixed Bow Women',sub: 'Field · R+C+B' },
-    { id: 'mixed_bow_team_men',      name: 'Mixed Bow Men',  sub: 'Field · R+C+B' },
-    { id: 'mixed_bow_team_u21_women',name: 'Mixed Bow U21 W',sub: 'Field · R+C+B' },
-    { id: 'mixed_bow_team_u21_men',  name: 'Mixed Bow U21 M',sub: 'Field · R+C+B' },
+    // Outdoor / indoor individual
+    { id: 'barebow_women',              name: 'Women',             sub: 'Individual · Set points' },
+    { id: 'barebow_men',               name: 'Men',               sub: 'Individual · Set points' },
+    { id: 'barebow_u21_women',          name: 'U21 Women',         sub: 'Individual · Set points' },
+    { id: 'barebow_u21_men',            name: 'U21 Men',           sub: 'Individual · Set points' },
+    { id: 'barebow_u18_women',          name: 'U18 Women',         sub: 'Individual · Set points' },
+    { id: 'barebow_u18_men',            name: 'U18 Men',           sub: 'Individual · Set points' },
+    // Outdoor / indoor team
+    { id: 'barebow_mixed_team',         name: 'Mixed Team',        sub: '1M+1W · Set points' },
+    { id: 'barebow_women_team',         name: 'Women Team',        sub: '3 archer · Set points' },
+    { id: 'barebow_men_team',           name: 'Men Team',          sub: '3 archer · Set points' },
+    { id: 'barebow_u21_mixed_team',     name: 'U21 Mixed Team',    sub: '1M+1W · Set points' },
+    // Field individual
+    { id: 'field_barebow_women',        name: 'Field Women',       sub: 'Individual · Total score' },
+    { id: 'field_barebow_men',          name: 'Field Men',         sub: 'Individual · Total score' },
+    { id: 'field_barebow_u21_women',    name: 'Field U21 Women',   sub: 'Individual · Total score' },
+    { id: 'field_barebow_u21_men',      name: 'Field U21 Men',     sub: 'Individual · Total score' },
+    { id: 'field_barebow_u18_women',    name: 'Field U18 Women',   sub: 'Individual · Total score' },
+    { id: 'field_barebow_u18_men',      name: 'Field U18 Men',     sub: 'Individual · Total score' },
+    // Field team
+    { id: 'field_barebow_mixed_team',     name: 'Field Mixed Team',     sub: '1M+1W · Total score' },
+    { id: 'field_barebow_u21_mixed_team', name: 'Field U21 Mixed Team', sub: '1M+1W · Total score' },
+    // Field mixed bow team (unique to field)
+    { id: 'field_mixed_bow_team_women',    name: 'Mixed Bow Women',   sub: 'Field · R+C+B' },
+    { id: 'field_mixed_bow_team_men',      name: 'Mixed Bow Men',     sub: 'Field · R+C+B' },
+    { id: 'field_mixed_bow_team_u21_women',name: 'Mixed Bow U21 W',   sub: 'Field · R+C+B' },
+    { id: 'field_mixed_bow_team_u21_men',  name: 'Mixed Bow U21 M',   sub: 'Field · R+C+B' },
   ],
 };
 
