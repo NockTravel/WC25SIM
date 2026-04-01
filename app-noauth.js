@@ -7,7 +7,7 @@ let navCategory = null;   // 'outdoor' | 'field' | 'indoor'
 let navDiv      = null;   // selected division id
 let navEvent    = null;   // event object from manifest
 let loadedFiles = {};     // tracks which data files have been injected
-let authed      = false;  // soft password gate
+let authed      = true;   // password gate disabled
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function rand(arr) {
@@ -34,15 +34,15 @@ function decomposeTotal(total, numEnds, endMax, endMin) {
   return ends;
 }
 
-function decomposeEnd(endTotal, arrows, allowX) {
+function decomposeEnd(endTotal, arrows, allowX, maxArrowVal) {
   if (allowX === undefined) allowX = true;
+  if (!maxArrowVal) maxArrowVal = 10;
   const result = [];
   let remaining = endTotal;
-  const maxArrow = 10;
   for (let i = 0; i < arrows - 1; i++) {
     const left = arrows - i;
-    const lo = Math.max(0, remaining - maxArrow * (left - 1));
-    const hi = Math.min(maxArrow, remaining - lo * (left - 1));
+    const lo = Math.max(0, remaining - maxArrowVal * (left - 1));
+    const hi = Math.min(maxArrowVal, remaining - lo * (left - 1));
     const avg = remaining / left;
     const jitter = Math.min(1.5, avg - lo, hi - avg);
     let val = Math.round(avg + (Math.random() * jitter * 2 - jitter));
@@ -51,7 +51,7 @@ function decomposeEnd(endTotal, arrows, allowX) {
     remaining -= val;
   }
   result.push(remaining);
-  if (allowX) return result.map(v => (v === 10 && Math.random() < 0.3) ? 11 : v);
+  if (allowX && maxArrowVal >= 10) return result.map(v => (v === 10 && Math.random() < 0.3) ? 11 : v);
   return result;
 }
 
@@ -60,12 +60,18 @@ function resolveIndividualSO(myRaw, oppRaw) {
 }
 
 function resolveTeamSO(myArrows, oppArrows) {
-  const myTotal = myArrows.reduce((s, v) => s + Math.min(v === 11 ? 10 : v, 10), 0);
-  const oppTotal = oppArrows.reduce((s, v) => s + v, 0);
+  // X = 11 internally; scores as 10 but beats a 10 in tiebreak (closer to middle)
+  const toScore = v => v === 11 ? 10 : Math.min(v, 10);
+  const myTotal  = myArrows.reduce((s, v) => s + toScore(v), 0);
+  const oppTotal = oppArrows.reduce((s, v) => s + toScore(v), 0);
   if (myTotal !== oppTotal) return { won: myTotal > oppTotal };
-  const myBest = Math.max(...myArrows.map(v => v === 11 ? 11 : v));
+  // Tied on total — compare best single arrow (X=11 beats 10)
+  const myBest  = Math.max(...myArrows);
   const oppBest = Math.max(...oppArrows);
-  return { won: myBest >= oppBest };
+  if (myBest !== oppBest) return { won: myBest > oppBest };
+  // Still tied — sudden death closest to middle goes to opponent (player loses)
+  // In reality this continues but for simulation we give it to the opponent
+  return { won: false };
 }
 
 function arrowDisplayStr(v) {
@@ -85,37 +91,67 @@ function arrowScore(v) {
 let selectedDiv = null;
 let state = null;
 
+// ─── RULES HELPERS — read from d.rules if present, fall back to type-based defaults ───
+
+function getRules(d) {
+  // If the division file has an explicit rules block, use it.
+  // Otherwise derive sensible defaults from d.type (legacy behaviour).
+  if (d.rules) return d.rules;
+
+  // Legacy fallback — derive from type string
+  const t = d.type || 'recurve';
+  const isTeam = t.includes('team');
+  const isMixed = t.includes('mixed');
+  const isCompound = t.startsWith('compound') || t.includes('field_compound');
+  const isRecurve = !isCompound;
+
+  // Arrow counts per set/end
+  let arrowsPerSet;
+  if (isTeam && !isMixed) arrowsPerSet = 6;
+  else if (isMixed) arrowsPerSet = 4;
+  else arrowsPerSet = 3;
+
+  // Number of sets/ends
+  const numSets = (isTeam || isMixed) ? 4 : 5;
+
+  // Shoot-off
+  let soArrows, soMaxVal;
+  if (isCompound) {
+    // compound team SO = 2 arrows total (one per archer for mixed, two for team)
+    soArrows = isMixed ? 1 : (isTeam ? 2 : 1);
+    soMaxVal = 10;
+  } else {
+    soArrows = 1;
+    soMaxVal = 10;
+  }
+
+  return {
+    scoring: isCompound ? 'total' : 'sets',
+    arrowsPerSet,
+    numSets,
+    maxArrowVal: 10,       // highest single-arrow value (field max = 6)
+    allowX: true,          // X ring (11 internal) available
+    soArrows,
+    soMaxVal,
+    maxEnd: d.maxEnd || (isCompound ? 30 : 30),
+    endArrows: d.endArrows || arrowsPerSet,
+  };
+}
+
 function isRecurveType(d) {
-  // barebow and junior recurve follow identical set-point rules
-  return ['recurve','recurve_team','recurve_mixed',
-          'recurve_u21','recurve_u15','recurve_u13','recurve_u18','recurve_50plus',
-          'barebow','barebow_team','barebow_mixed',
-          'field_recurve','field_recurve_mixed','field_recurve_3team',
-          'field_barebow','field_barebow_mixed','field_mixed_bow'].includes(d.type);
+  return getRules(d).scoring === 'sets';
 }
 
 function arrowsPerSetEnd(d) {
-  if (d.type === 'recurve') return 3;
-  if (d.type === 'recurve_team') return 6;
-  if (d.type === 'recurve_mixed') return 4;
-  if (d.type === 'compound') return 3;
-  if (d.type === 'compound_team') return 6;
-  if (d.type === 'compound_mixed') return 4;
-  return 3;
+  return getRules(d).arrowsPerSet;
 }
 
 function maxSetsEnds(d) {
-  // Team matches are 4 sets/ends; individual are 5
-  const individual = ['recurve','compound','recurve_u21','recurve_u15','recurve_u13','recurve_u18','recurve_50plus','compound_u21','compound_50plus','barebow',
-    'field_recurve','field_compound','field_barebow'];
-  return individual.includes(d.type) ? 5 : 4;
+  return getRules(d).numSets;
 }
 
 function soTriggerPts(d) {
-  // Recurve individual: SO at 5-5 (max 5 sets, 10pts each side)
-  // Recurve team/mixed: SO at 4-4 (max 4 sets, 8pts each side)
-  // Compound: cumulative total tie triggers SO regardless
-  return (d.type === 'recurve' || d.type === 'compound') ? 5 : 4;
+  return getRules(d).numSets;
 }
 
 function $(id) { return document.getElementById(id); }
@@ -232,10 +268,36 @@ function selectEvent(eventId) {
   const ev = cat.events.find(e => e.id === eventId);
   if (!ev || ev.comingSoon) return;
   navEvent = ev;
-  selectedDiv = navDiv; // already chosen at start
-  loadEventFiles(ev, () => render());
+  selectedDiv = navDiv;
+  // Load only the single division file we need
+  loadDivisionFile(ev, navDiv, () => render());
 }
 
+// Normalise an event id to a safe JS identifier segment
+function normEventId(id) {
+  return id.replace(/-/g, '_');
+}
+
+// Global key for a loaded division: DIV_{eventId}_{divKey}
+function divGlobalKey(ev, divKey) {
+  return 'DIV_' + normEventId(ev.id) + '_' + divKey;
+}
+
+function loadDivisionFile(ev, divKey, callback) {
+  const key = divGlobalKey(ev, divKey);
+  if (window[key]) { callback(); return; }                // already loaded
+  const path = (ev.folder || '') + '/' + divKey + '.js';
+  const s = document.createElement('script');
+  s.src = path;
+  s.onload = () => { callback(); };
+  s.onerror = () => {
+    console.error('Failed to load division file', path);
+    callback(); // let app handle missing data gracefully
+  };
+  document.body.appendChild(s);
+}
+
+// Legacy: load all files listed in ev.files (old format support)
 function loadEventFiles(ev, callback) {
   if (!ev.files || ev.files.length === 0) { callback(); return; }
   let remaining = ev.files.filter(f => !loadedFiles[f]).length;
@@ -244,16 +306,8 @@ function loadEventFiles(ev, callback) {
     if (loadedFiles[f]) return;
     const s = document.createElement('script');
     s.src = f;
-    s.onload = () => {
-      loadedFiles[f] = true;
-      remaining--;
-      if (remaining === 0) callback();
-    };
-    s.onerror = () => {
-      console.error('Failed to load', f);
-      remaining--;
-      if (remaining === 0) callback();
-    };
+    s.onload = () => { loadedFiles[f] = true; remaining--; if (remaining === 0) callback(); };
+    s.onerror = () => { console.error('Failed to load', f); remaining--; if (remaining === 0) callback(); };
     document.body.appendChild(s);
   });
 }
@@ -332,11 +386,10 @@ function renderDivisionPicker(main) {
       { id:'barebow_u18_women',        name:'U17/U18 Women',      sub:'Individual · Set points'  },
       { id:'barebow_u18_men',          name:'U17/U18 Men',        sub:'Individual · Set points'  },
       { id:'barebow_u21_mixed_team',   name:'U21 Mixed Team',     sub:'Mixed · Set points'       },
-      { id:'mixed_bow_team',           name:'Mixed Bow Team',     sub:'Field · R+C+B'            },
-      { id:'women_team',               name:'Women Team',         sub:'Field · Mixed bow'        },
-      { id:'men_team',                 name:'Men Team',           sub:'Field · Mixed bow'        },
-      { id:'women_u21_team',           name:'Women U21 Team',     sub:'Field · Mixed bow'        },
-      { id:'men_u21_team',             name:'Men U21 Team',       sub:'Field · Mixed bow'        },
+      { id:'women_mixed_bow_team',     name:'Women Mixed Bow Team',     sub:'Field · R+C+B' },
+      { id:'men_mixed_bow_team',       name:'Men Mixed Bow Team',       sub:'Field · R+C+B' },
+      { id:'women_u21_mixed_bow_team', name:'U21 Women Mixed Bow Team', sub:'Field · R+C+B' },
+      { id:'men_u21_mixed_bow_team',   name:'U21 Men Mixed Bow Team',   sub:'Field · R+C+B' },
     ],
   };
   const divs = ALL_DIVS[navBowType] || [];
@@ -386,7 +439,12 @@ function renderConfirmStart(main) {
 }
 
 function getDataForDiv(id) {
-  // Use event-namespaced data if available, fall back to global
+  // New format: each division file registers window.DIV_{eventId}_{divKey}
+  if (navEvent) {
+    const newKey = divGlobalKey(navEvent, id);
+    if (window[newKey]) return window[newKey];
+  }
+  // Legacy format: big individual/teams objects
   const ev = navEvent;
   if (ev) {
     const iKey = ev.individualKey || 'DATA_INDIVIDUAL';
@@ -582,10 +640,11 @@ function buildArrowZone(isSO) {
   }).join('');
 
   const soNote = isSO ? ' · 1 arrow each (0–10 or X)' : '';
+  const runningDisplay = entered > 0 ? `Running total: ${runningTotal}` : '&nbsp;';
   return `<div class="input-zone" style="${isSO?'border-color:rgba(201,168,76,0.8);':''}">
     <div class="set-prompt" style="${isSO?'color:var(--gold);':''}">${setLabel} · ${arrowLabel}${soNote}</div>
     <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:10px;">${pipHtml}</div>
-    ${entered > 0 ? `<div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--muted);margin-bottom:8px;">Running total: ${runningTotal}</div>` : ''}
+    <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--muted);margin-bottom:8px;">${runningDisplay}</div>
     ${buildArrowNumpad(allDone, isSO)}
   </div>`;
 }
@@ -602,14 +661,20 @@ function buildArrowNumpad(showShoot, isSO, soMaxVal) {
     if (showShoot) h += `<button class="np-btn shoot-btn" onclick="${shootFn}" style="grid-column:span 4;margin-top:4px;">SHOOT →</button>`;
     return h + '</div>';
   }
-  const keys = [
-    {l:'M',c:'miss',fn:'arrowNp(0)'},
-    {l:'1',c:'',fn:'arrowNp(1)'},{l:'2',c:'',fn:'arrowNp(2)'},{l:'3',c:'',fn:'arrowNp(3)'},
-    {l:'4',c:'',fn:'arrowNp(4)'},{l:'5',c:'',fn:'arrowNp(5)'},{l:'6',c:'',fn:'arrowNp(6)'},
-    {l:'7',c:'',fn:'arrowNp(7)'},{l:'8',c:'',fn:'arrowNp(8)'},{l:'9',c:'',fn:'arrowNp(9)'},
-    {l:'10',c:'',fn:'arrowNp(10)'},{l:'X',c:'x-btn',fn:'arrowNp(11)'},
-    {l:'⌫',c:'del',fn:'arrowUndo()'},
-  ];
+
+  // Determine max arrow value from rules (e.g. field = 6, standard = 10)
+  const rules = state.data ? getRules(state.data) : null;
+  const maxVal = (isSO && soMaxVal) ? soMaxVal : (rules ? (rules.maxArrowVal || 10) : 10);
+  const allowX = rules ? (rules.allowX !== false) : true;
+
+  // Build keys: M, then 1 through maxVal, then X if allowed
+  const keys = [{ l:'M', c:'miss', fn:'arrowNp(0)' }];
+  for (let i = 1; i <= maxVal; i++) {
+    keys.push({ l: String(i), c: '', fn: `arrowNp(${i})` });
+  }
+  if (allowX && maxVal >= 10) keys.push({ l:'X', c:'x-btn', fn:'arrowNp(11)' });
+  keys.push({ l:'⌫', c:'del', fn:'arrowUndo()' });
+
   let h = `<div class="numpad numpad-4col">`;
   keys.forEach(k => { h += `<button class="np-btn ${k.c}" onclick="${k.fn}">${k.l}</button>`; });
   if (showShoot) {
@@ -753,13 +818,14 @@ function advanceRound() {
 
 function getOrDrawOppEnds(d, roundKey) {
   if (!state.oppMatchEnds) {
+    const rules = getRules(d);
     const oppTotal = rand(d.scores[roundKey]);
-    const endMax = d.maxEnd || 30;
+    const endMax = rules.maxEnd || d.maxEnd || 30;
     const endMin = Math.round(endMax * 0.73);
-    const endTotals = decomposeTotal(oppTotal, maxSetsEnds(d), endMax, endMin);
+    const endTotals = decomposeTotal(oppTotal, rules.numSets, endMax, endMin);
     state.oppMatchEnds = endTotals.map(t => ({
       total: t,
-      arrows: decomposeEnd(t, d.endArrows || 3)
+      arrows: decomposeEnd(t, rules.endArrows || rules.arrowsPerSet || 3, rules.allowX !== false, rules.maxArrowVal || 10)
     }));
   }
   return state.oppMatchEnds;
@@ -838,8 +904,10 @@ function confirmSO() {
     if (myRaw === undefined) return;
     state.soMyRaw = myRaw;
     const res = resolveIndividualSO(myRaw, state.soOppRaw);
-    if (res.won) state.myPts++;
-    else if (res.tied) { if (Math.random() > 0.5) state.myPts++; else state.oppPts++; }
+    // On a true tie (e.g. both shoot X), physically closest to middle wins —
+    // simulate as a coin flip since we can't measure distance
+    if (res.tied) { if (Math.random() > 0.5) state.myPts++; else state.oppPts++; }
+    else if (res.won) state.myPts++;
     else state.oppPts++;
   } else {
     // ALL team SO: 1 arrow per archer (0-10/X), compare total then best single arrow on tie
@@ -851,7 +919,11 @@ function confirmSO() {
     if (soPool && Array.isArray(soPool[0])) {
       oppArrows = rand(soPool);
     } else {
-      oppArrows = Array.from({length: target}, () => rand([8,9,9,10,10,10]));
+      // Fallback: generate realistic SO arrows including X (11) for outdoor events
+      const rules = getRules(d);
+      const canX = rules.allowX !== false;
+      const pool = canX ? [8,9,9,10,10,10,11] : [rules.maxArrowVal - 2, rules.maxArrowVal - 1, rules.maxArrowVal];
+      oppArrows = Array.from({length: target}, () => rand(pool));
     }
     state.soOppArrows = oppArrows;
     const res = resolveTeamSO(arrows, oppArrows);
@@ -974,10 +1046,11 @@ function confirmBronzeArrows(d, arrows, total, isRec, round) {
   } else {
     const endIdx = state.bMyEnds.length;
     if (!state.bOppMatchEnds) {
-      const endMax = d.maxEnd || 30;
+      const rules = getRules(d);
+      const endMax = rules.maxEnd || d.maxEnd || 30;
       const oppMatchTotal = rand(d.scores[round.key]);
-      const endTotals = decomposeTotal(oppMatchTotal, maxSetsEnds(d), endMax, Math.round(endMax * 0.73));
-      state.bOppMatchEnds = endTotals.map(t => ({ total: t, arrows: decomposeEnd(t, d.endArrows || 3) }));
+      const endTotals = decomposeTotal(oppMatchTotal, rules.numSets, endMax, Math.round(endMax * 0.73));
+      state.bOppMatchEnds = endTotals.map(t => ({ total: t, arrows: decomposeEnd(t, rules.endArrows || rules.arrowsPerSet || 3, rules.allowX !== false, rules.maxArrowVal || 10) }));
     }
     const oppEndObj = state.bOppMatchEnds[endIdx];
     state.bMyEnds.push({ arrows: [...arrows], total });
@@ -1005,14 +1078,15 @@ function renderBronzeResult(main) {
   const cls = won ? 'champion' : 'eliminated';
   const borderCol = won ? 'rgba(180,120,30,0.7)' : 'var(--border)';
   const bgCol = won ? 'rgba(180,120,30,0.07)' : 'var(--panel)';
+  const eventLabel = navEvent ? navEvent.label : 'the tournament';
   main.innerHTML = `
     <div class="result-screen ${cls}" style="border-color:${borderCol};background:${bgCol};">
       <div class="screen-icon">${won ? '🥉' : '4️⃣'}</div>
       <div class="screen-title" style="color:${won?'rgba(200,150,50,0.95)':'var(--muted)'}">
-        ${won ? 'Bronze Medal' : 'Fourth Place'}
+        ${won ? 'Bronze Medalist' : 'Fourth Place'}
       </div>
       <div class="screen-sub">
-        ${won ? 'You won the bronze medal at the Gwangju 2025 World Archery Championships.' : 'You finished fourth — just outside the medals.'}
+        ${won ? `You won the Bronze Medal at ${eventLabel}.` : 'You finished fourth — just outside the medals.'}
         <br>Final: You ${state.bMyPts} – ${state.bOppPts} Opponent
       </div>
       <button class="next-btn" onclick="restartSame()">Try again →</button>
@@ -1023,9 +1097,11 @@ function renderBronzeResult(main) {
 
 // ─── MEDAL SCREENS ────────────────────────────────────────────────────────────
 function renderMedal(type, main) {
+  const eventLabel = navEvent ? navEvent.label : 'the tournament';
+  const divLabel = state.data ? state.data.label : '';
   const cfg = {
-    gold:   { icon:'🥇', title:'World Champion',  border:'var(--border-bright)', bg:'rgba(201,168,76,0.07)', color:'var(--gold)',  sub:`You've won Gold at the Gwangju 2025 World Archery Championships — ${state.data.label}.` },
-    silver: { icon:'🥈', title:'Silver Medal',     border:'rgba(180,180,190,0.5)', bg:'rgba(180,180,190,0.05)', color:'#ccc', sub:`You reached the gold medal match and claimed Silver at the Gwangju 2025 World Archery Championships.` },
+    gold:   { icon:'🥇', title:'Gold Medalist',  border:'var(--border-bright)', bg:'rgba(201,168,76,0.07)', color:'var(--gold)',  sub:`You claimed Gold at ${eventLabel}${divLabel ? ' — ' + divLabel : ''}.` },
+    silver: { icon:'🥈', title:'Silver Medalist', border:'rgba(180,180,190,0.5)', bg:'rgba(180,180,190,0.05)', color:'#ccc', sub:`You reached the final and claimed Silver at ${eventLabel}.` },
   };
   const c = cfg[type];
   main.innerHTML = `
