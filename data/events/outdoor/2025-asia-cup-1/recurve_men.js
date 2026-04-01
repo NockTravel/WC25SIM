@@ -1,6 +1,6 @@
 // 2025 Asia Cup Stage 1 — Bangkok, Thailand · Feb 2025
-// Division: Recurve Women
-// Registers: window.DIV_2025_asia_cup_1_recurve_women
+// Division: Recurve Men
+// Registers: window.DIV_2025_asia_cup_1_recurve_men
 //
 // ── DATA FORMAT ──────────────────────────────────────────────────────────────
 // rounds:  array of { key, label, sub } — defines the bracket structure
@@ -14,7 +14,7 @@
 //       by division key. This file only needs to supply score data.
 
 (function () {
-  window.DIV_2025_asia_cup_1_recurve_women = {
+  window.DIV_2025_asia_cup_1_recurve_men = {
 
     label: 'Recurve Women',
 
