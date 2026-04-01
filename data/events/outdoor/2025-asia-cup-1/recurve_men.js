@@ -1,4 +1,34 @@
-sets: {
+// 2025 Asia Cup Stage 1 — Bangkok, Thailand · Feb 2025
+// Division: Recurve Women
+// Registers: window.DIV_2025_asia_cup_1_recurve_women
+//
+// ── DATA FORMAT ──────────────────────────────────────────────────────────────
+// rounds:  array of { key, label, sub } — defines the bracket structure
+//
+// sets:    { [roundKey]: { [setNumber]: [score, score, ...], so: [score, ...] } }
+//          Each array is the pool of real scores from that set position.
+//          The app draws randomly from the pool for the opponent's score.
+//          set numbers are 1-indexed. 'so' is the shoot-off pool.
+//
+// NOTE: Rules (arrowsPerEnd, winPts, soArrows etc.) are defined in app.js
+//       by division key. This file only needs to supply score data.
+
+(function () {
+  window.DIV_2025_asia_cup_1_recurve_women = {
+
+    label: 'Recurve Women',
+
+    rounds: [
+      { key: 'r1', label: 'Round 1',      sub: '1/48 Elimination' },
+      { key: 'r2', label: 'Round 2',      sub: '1/24 Elimination' },
+      { key: 'r3', label: 'Round 3',      sub: '1/16 Elimination' },
+      { key: 'r4', label: 'Round 4',      sub: '1/8 Elimination'  },
+      { key: 'qf', label: 'Quarterfinal', sub: 'Top 8'            },
+      { key: 'sf', label: 'Semifinal',    sub: 'Top 4'            },
+      { key: 'f',  label: 'Final',        sub: 'Gold Medal Match'  },
+    ],
+
+    sets: {
       r1: {
         1:[25,25,27,24,25,26,26,23,17,26,25,24,24,23,27,27,28,27,23,24,27,26,25,24,28,23,23,26,25,25,27,24,25],
         2:[25,26,27,22,30,27,28,23,27,27,24,23,24,26,27,24,24,26,25,20,28,25,21,29,25,21,23,30,25,23,20,26,27],
@@ -53,4 +83,10 @@ sets: {
         3:[25,27,28,27],
         4:[27,28,27,30],
         5:[28,26,28,25],
-        so:[10,8,10,9]
+        so:[10,8,10,9],
+      },
+    },
+  };
+}());
+
+
