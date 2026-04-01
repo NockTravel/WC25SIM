@@ -2,7 +2,7 @@
 // Taipei · 5-7 Dec 2025
 // Individual events — all recurve set format, compound cumulative
 
-window.DATA_TAIPEI_INDIVIDUAL = {
+window.DATA_TAIPEI_2025_INDIVIDUAL = {
 
   // ─── RECURVE WOMEN ───────────────────────────────────────────────────────
   recurve_women: {
