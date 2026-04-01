@@ -1,4 +1,7 @@
 // Event manifest — defines the landing page structure
+// Each event's data lives in its own folder: data/events/{category}/{event-id}/
+// Each division is a separate JS file: {division-key}.js
+// The global it registers:  window.DIV_{normalisedEventId}_{divKey}
 
 window.EVENT_MANIFEST = {
 
@@ -10,12 +13,7 @@ window.EVENT_MANIFEST = {
         id: '2025-worlds-outdoor',
         label: '2025 World Championships',
         sub: 'Gwangju, South Korea · Sep 2025',
-        files: [
-          'data/events/outdoor/2025-worlds-outdoor-individual.js',
-          'data/events/outdoor/2025-worlds-outdoor-teams.js'
-        ],
-        individualKey: 'DATA_INDIVIDUAL',
-        teamsKey: 'DATA_TEAMS',
+        folder: 'data/events/outdoor/2025-worlds-outdoor',
         divisions: [
           'recurve_women','recurve_men',
           'compound_women','compound_men',
@@ -27,12 +25,7 @@ window.EVENT_MANIFEST = {
         id: '2025-asia-cup-1',
         label: '2025 Asia Cup Stage 1',
         sub: 'Bangkok, Thailand · Feb 2025',
-        files: [
-          'data/events/outdoor/2025-asia-cup-1-outdoor-individual.js',
-          'data/events/outdoor/2025-asia-cup-1-outdoor-teams.js'
-        ],
-        individualKey: 'DATA_ASIA_CUP_1_INDIVIDUAL',
-        teamsKey: 'DATA_ASIA_CUP_1_TEAMS',
+        folder: 'data/events/outdoor/2025-asia-cup-1',
         divisions: [
           'recurve_women','recurve_men',
           'compound_women','compound_men',
@@ -44,12 +37,7 @@ window.EVENT_MANIFEST = {
         id: '2025-nationals',
         label: '2025 Nationals',
         sub: 'AIS Canberra, Australia · Nov 2025',
-        files: [
-          'data/events/outdoor/2025-nationals-outdoor-individual.js',
-          'data/events/outdoor/2025-nationals-outdoor-teams.js'
-        ],
-        individualKey: 'DATA_NATIONALS_INDIVIDUAL',
-        teamsKey: 'DATA_NATIONALS_TEAMS',
+        folder: 'data/events/outdoor/2025-nationals',
         divisions: [
           'recurve_women','recurve_men',
           'compound_women','compound_men',
@@ -70,12 +58,7 @@ window.EVENT_MANIFEST = {
         id: '2024-world-field',
         label: '2024 World Field Championships',
         sub: 'Lac La Biche, Canada · Sep 2024',
-        files: [
-          'data/events/field/2024-world-field-individual.js',
-          'data/events/field/2024-world-field-teams.js'
-        ],
-        individualKey: 'DATA_WORLD_FIELD_2024_INDIVIDUAL',
-        teamsKey: 'DATA_WORLD_FIELD_2024_TEAMS',
+        folder: 'data/events/field/2024-world-field',
         divisions: [
           'recurve_women','recurve_men',
           'recurve_u21_women','recurve_u21_men',
@@ -89,9 +72,8 @@ window.EVENT_MANIFEST = {
           'recurve_mixed_team','recurve_u21_mixed_team',
           'compound_mixed_team','compound_u21_mixed_team',
           'barebow_mixed_team','barebow_u21_mixed_team',
-          'mixed_bow_team',
-          'women_team','men_team',
-          'women_u21_team','men_u21_team'
+          'women_mixed_bow_team','men_mixed_bow_team',
+          'women_u21_mixed_bow_team','men_u21_mixed_bow_team'
         ]
       }
     ]
@@ -105,11 +87,7 @@ window.EVENT_MANIFEST = {
         id: '2025-taipei',
         label: 'Taipei Archery Open 2025',
         sub: 'Taipei · Dec 2025',
-        files: [
-          'data/events/indoor/2025-taipei-individual.js'
-        ],
-        individualKey: 'DATA_TAIPEI_2025_INDIVIDUAL',
-        teamsKey: null,
+        folder: 'data/events/indoor/2025-taipei',
         divisions: [
           'recurve_women','recurve_men',
           'recurve_u21_women','recurve_u21_men',
@@ -123,11 +101,7 @@ window.EVENT_MANIFEST = {
         id: '2024-taipei',
         label: 'Taipei Archery Open 2024',
         sub: 'Taipei · Dec 2024',
-        files: [
-          'data/events/indoor/2024-taipei-individual.js'
-        ],
-        individualKey: 'DATA_TAIPEI_2024_INDIVIDUAL',
-        teamsKey: null,
+        folder: 'data/events/indoor/2024-taipei',
         divisions: [
           'recurve_women','recurve_men',
           'recurve_u21_women','recurve_u21_men',
@@ -142,11 +116,7 @@ window.EVENT_MANIFEST = {
         id: '2026-nimes',
         label: 'Nîmes Archery Tournament 2026',
         sub: 'Nîmes, France · Jan 2026',
-        files: [
-          'data/events/indoor/2026-nimes-individual.js'
-        ],
-        individualKey: 'DATA_NIMES_2026_INDIVIDUAL',
-        teamsKey: null,
+        folder: 'data/events/indoor/2026-nimes',
         divisions: [
           'recurve_women','recurve_men',
           'recurve_u21_women','recurve_u21_men',
