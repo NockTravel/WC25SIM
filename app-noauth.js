@@ -692,7 +692,7 @@ function buildArrowNumpad(showShoot, isSO, soMaxVal) {
 function arrowNp(val) {
   if (!state.arrows) state.arrows = [];
   const isSO = state.phase === 'shootoff';
-  const target = isSO ? (state.data.archers || 1) : state.arrowTarget;
+  const target = isSO ? (getRules(state.data).soArrows || 1) : state.arrowTarget;
   if (state.arrows.length >= target) return;
   state.arrows.push(val);
   render();
