@@ -169,15 +169,15 @@ function render() {
     return;
   }
   switch (state.phase) {
-    case 'playing':      renderPlaying(main); break;
-    case 'shootoff':     renderShootoff(main); break;
-    case 'soReveal':     renderSOReveal(main); break;
-    case 'matchResult':  renderMatchResult(main); break;
-    case 'bronze':       renderBronze(main); break;
-    case 'bronzeResult': renderBronzeResult(main); break;
-    case 'silver':       renderMedal('silver', main); break;
-    case 'gold':         renderMedal('gold', main); break;
-    case 'eliminated':   renderEliminated(main); break;
+    case 'playing':       renderPlaying(main); break;
+    case 'shootoff':      renderShootoff(main); break;
+    case 'soReveal':      renderSOReveal(main); break;
+    case 'matchResult':   renderMatchResult(main); break;
+    case 'bronze':        renderBronze(main); break;
+    case 'bronzeResult':  renderBronzeResult(main); break;
+    case 'silver':        renderMedal('silver', main); break;
+    case 'gold':          renderMedal('gold', main); break;
+    case 'eliminated':    renderEliminated(main); break;
   }
 }
 
@@ -610,7 +610,8 @@ function buildCompoundBoard() {
 function buildArrowZone(isSO) {
   const d = state.data;
   const arrows = state.arrows || [];
-  const target = isSO ? (d.archers || 1) : state.arrowTarget;
+  const rules = getRules(d);
+  const target = isSO ? (rules.soArrows || 1) : state.arrowTarget;
   const entered = arrows.length;
   const allDone = entered >= target;
 
@@ -876,17 +877,6 @@ function matchNext(won) {
 }
 
 // ─── SHOOT-OFF ────────────────────────────────────────────────────────────────
-function renderShootoff(main) {
-  const d = state.data;
-  const round = d.rounds[state.roundIdx];
-  const isRec = isRecurveType(d);
-  let html = backBtn() + roundBanner(round, state.roundIdx, d.rounds.length);
-  html += isRec ? buildRecurveBoard() : buildCompoundBoard();
-  html += buildArrowZone(true);
-  html += buildHistory();
-  main.innerHTML = html;
-}
-
 function isCompoundType(d) {
   return ['compound','compound_team','compound_mixed',
           'compound_u21','compound_50plus',
@@ -897,21 +887,23 @@ function confirmSO() {
   const d = state.data;
   const arrows = state.arrows || [];
   const isTeam = d.type.includes('team') || d.type.includes('mixed');
+  const inBronze = state.inBronze;
+
+  // Helper to increment the right points counters
+  function addMyPt()  { if (inBronze) state.bMyPts++;  else state.myPts++;  }
+  function addOppPt() { if (inBronze) state.bOppPts++; else state.oppPts++; }
 
   if (!isTeam) {
-    // Individual: single arrow 0-10/X
     const myRaw = arrows[0];
     if (myRaw === undefined) return;
     state.soMyRaw = myRaw;
     const res = resolveIndividualSO(myRaw, state.soOppRaw);
-    // On a true tie (e.g. both shoot X), physically closest to middle wins —
-    // simulate as a coin flip since we can't measure distance
-    if (res.tied) { if (Math.random() > 0.5) state.myPts++; else state.oppPts++; }
-    else if (res.won) state.myPts++;
-    else state.oppPts++;
+    // True tie — coin flip (physical proximity can't be simulated)
+    if (res.tied) { if (Math.random() > 0.5) addMyPt(); else addOppPt(); }
+    else if (res.won) addMyPt();
+    else addOppPt();
   } else {
-    // ALL team SO: 1 arrow per archer (0-10/X), compare total then best single arrow on tie
-    const target = d.archers || 2;
+    const target = getRules(d).soArrows || 2;
     if (arrows.length < target) return;
     state.soMyArrows = [...arrows];
     const soPool = d.so;
@@ -919,7 +911,6 @@ function confirmSO() {
     if (soPool && Array.isArray(soPool[0])) {
       oppArrows = rand(soPool);
     } else {
-      // Fallback: generate realistic SO arrows including X (11) for outdoor events
       const rules = getRules(d);
       const canX = rules.allowX !== false;
       const pool = canX ? [8,9,9,10,10,10,11] : [rules.maxArrowVal - 2, rules.maxArrowVal - 1, rules.maxArrowVal];
@@ -927,7 +918,7 @@ function confirmSO() {
     }
     state.soOppArrows = oppArrows;
     const res = resolveTeamSO(arrows, oppArrows);
-    if (res.won) state.myPts++; else state.oppPts++;
+    if (res.won) addMyPt(); else addOppPt();
   }
   state.arrows = [];
   state.phase = 'soReveal';
@@ -936,25 +927,25 @@ function confirmSO() {
 
 function renderSOReveal(main) {
   const d = state.data;
-  const round = d.rounds[state.roundIdx];
-  const won = state.myPts > state.oppPts;
+  const inBronze = state.inBronze;
+  const myPts  = inBronze ? state.bMyPts  : state.myPts;
+  const oppPts = inBronze ? state.bOppPts : state.oppPts;
+  const won = myPts > oppPts;
   const cls = won ? 'win' : 'loss';
   const isTeam = d.type.includes('team') || d.type.includes('mixed');
 
   let soHtml = '';
   if (!isTeam || !state.soMyArrows) {
-    // Individual SO — single arrow
     soHtml = `<div class="so-reveal">
-      <div class="so-col"><div class="so-val" style="color:var(--muted)">${state.soOppRaw}</div><div class="so-lbl">Opponent</div></div>
+      <div class="so-col"><div class="so-val" style="color:var(--muted)">${arrowDisplayStr(state.soOppRaw)}</div><div class="so-lbl">Opponent</div></div>
       <div class="so-vs">vs</div>
       <div class="so-col"><div class="so-val" style="color:var(--gold-light)">${arrowDisplayStr(state.soMyRaw)}</div><div class="so-lbl">You</div></div>
     </div>`;
   } else {
-    // All team SO — 1 arrow per archer, show pips + total
-    const myT = state.soMyArrows.reduce((s,v)=>s+arrowScore(v),0);
-    const oppT = state.soOppArrows.reduce((s,v)=>s+v,0);
-    const myPips = state.soMyArrows.map(v=>`<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
-    const oppPips = state.soOppArrows.map(v=>`<span class="so-arrow-pip">${v}</span>`).join('');
+    const myT   = state.soMyArrows.reduce((s,v)=>s+arrowScore(v),0);
+    const oppT  = state.soOppArrows.reduce((s,v)=>s+arrowScore(v),0);
+    const myPips  = state.soMyArrows.map(v=>`<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
+    const oppPips = state.soOppArrows.map(v=>`<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
     soHtml = `<div class="so-reveal">
       <div class="so-col"><div class="so-val" style="color:var(--muted)">${oppT}</div><div class="so-arrows">${oppPips}</div><div class="so-lbl">Opponent</div></div>
       <div class="so-vs">vs</div>
@@ -962,24 +953,33 @@ function renderSOReveal(main) {
     </div>`;
   }
 
-  const sfIdx = d.rounds.length - 2;
-  const fIdx = d.rounds.length - 1;
-  const atSF = state.roundIdx === sfIdx && d.rounds.length > 2;
-  const atF = state.roundIdx === fIdx;
+  let header, nextLabel, nextFn;
+  if (inBronze) {
+    header = `<button class="back-btn" onclick="goHome()">← Divisions</button>
+      <div class="round-banner">
+        <div><div class="round-name" style="color:rgba(180,120,30,0.9)">Bronze Shoot-off</div><div class="round-sub">3rd place match</div></div>
+      </div>`;
+    nextLabel = won ? 'Collect your Bronze →' : 'View your run →';
+    nextFn = 'soNext(false, false)'; // inBronze flag handles routing
+  } else {
+    const sfIdx = d.rounds.length - 2;
+    const fIdx  = d.rounds.length - 1;
+    const atSF  = state.roundIdx === sfIdx && d.rounds.length > 2;
+    const atF   = state.roundIdx === fIdx;
+    header = backBtn() + roundBanner(d.rounds[state.roundIdx], state.roundIdx, d.rounds.length);
+    if (won && atF)        { nextLabel = 'Collect your Gold →';                              nextFn = 'soNext(true,true)'; }
+    else if (!won && atF)  { nextLabel = 'Collect your Silver →';                            nextFn = 'soNext(false,true)'; }
+    else if (!won && atSF) { nextLabel = 'Proceed to Bronze Final →';                        nextFn = 'soNext(false,false)'; }
+    else if (won)          { nextLabel = `Advance to ${d.rounds[state.roundIdx+1].label} →`; nextFn = 'soNext(true,false)'; }
+    else                   { nextLabel = 'View your run →';                                  nextFn = 'soNext(false,false)'; }
+  }
 
-  let nextLabel, nextFn;
-  if (won && atF) { nextLabel = 'Collect your Gold →'; nextFn = 'soNext(true,true)'; }
-  else if (!won && atF) { nextLabel = 'Collect your Silver →'; nextFn = 'soNext(false,true)'; }
-  else if (!won && atSF) { nextLabel = 'Proceed to Bronze Final →'; nextFn = 'soNext(false,false)'; }
-  else if (won) { nextLabel = `Advance to ${d.rounds[state.roundIdx+1].label} →`; nextFn = 'soNext(true,false)'; }
-  else { nextLabel = 'View your run →'; nextFn = 'soNext(false,false)'; }
-
-  let html = backBtn() + roundBanner(round, state.roundIdx, d.rounds.length);
+  let html = header;
   html += `<div class="result-card ${cls}">
     <div class="so-prompt">Shoot-off result</div>
     ${soHtml}
     <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
-    <div class="result-detail">You ${state.myPts} – ${state.oppPts} Opponent</div>
+    <div class="result-detail">You ${myPts} – ${oppPts} Opponent</div>
   </div>
   <button class="next-btn" onclick="${nextFn}">${nextLabel}</button>`;
   html += buildHistory();
@@ -987,6 +987,10 @@ function renderSOReveal(main) {
 }
 
 function soNext(won, isFinal) {
+  if (state.inBronze) {
+    resolveBronze();
+    return;
+  }
   saveHistory(won, false);
   const d = state.data;
   const sfIdx = d.rounds.length - 2;
@@ -1002,7 +1006,25 @@ function soNext(won, isFinal) {
   render();
 }
 
-// ─── BRONZE FINAL ─────────────────────────────────────────────────────────────
+function renderShootoff(main) {
+  const d = state.data;
+  const isRec = isRecurveType(d);
+  let html;
+  if (state.inBronze) {
+    html = `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+    html += `<div class="round-banner">
+      <div><div class="round-name" style="color:rgba(180,120,30,0.9)">Bronze Shoot-off</div><div class="round-sub">3rd place · tied after ${maxSetsEnds(d)} sets</div></div>
+      <div class="round-pills"><div class="pill done"></div><div class="pill done"></div><div class="pill current" style="background:rgba(180,120,30,0.8)"></div></div>
+    </div>`;
+  } else {
+    const round = d.rounds[state.roundIdx];
+    html = backBtn() + roundBanner(round, state.roundIdx, d.rounds.length);
+  }
+  html += isRec ? buildRecurveBoard() : buildCompoundBoard();
+  html += buildArrowZone(true);
+  html += buildHistory();
+  main.innerHTML = html;
+}
 function initBronze() {
   state.inBronze = true;
   state.bMyScores = []; state.bOppScores = [];
@@ -1042,7 +1064,16 @@ function confirmBronzeArrows(d, arrows, total, isRec, round) {
     const played = state.bMyScores.length;
     const left = maxS - played;
     const decided = state.bMyPts > state.bOppPts + left*2 || state.bOppPts > state.bMyPts + left*2 || played >= maxS;
-    if (decided) { resolveBronze(); return; }
+    if (decided) {
+      if (state.bMyPts === state.bOppPts) {
+        state.soOppRaw = rand(pool.so || [9,10,8,9]);
+        state.arrows = [];
+        state.phase = 'shootoff';
+      } else {
+        resolveBronze();
+      }
+      return;
+    }
   } else {
     const endIdx = state.bMyEnds.length;
     if (!state.bOppMatchEnds) {
@@ -1059,14 +1090,21 @@ function confirmBronzeArrows(d, arrows, total, isRec, round) {
     if (state.bMyEnds.length >= maxSetsEnds(d)) {
       state.bMyPts = state.bMyEnds.reduce((s, v) => s + v.total, 0);
       state.bOppPts = state.bOppEnds.reduce((s, v) => s + v.total, 0);
-      resolveBronze(); return;
+      if (state.bMyPts === state.bOppPts) {
+        state.soOppRaw = rand(d.so || [9,10,9,10]);
+        state.arrows = [];
+        state.phase = 'shootoff';
+      } else {
+        resolveBronze();
+      }
+      return;
     }
   }
   render();
 }
 
 function resolveBronze() {
-  const won = state.bMyPts > state.bOppPts || (state.bMyPts === state.bOppPts);
+  const won = state.bMyPts > state.bOppPts;
   saveHistory(won, true);
   state.inBronze = false;
   state.phase = 'bronzeResult';
@@ -1074,7 +1112,26 @@ function resolveBronze() {
 }
 
 function renderBronzeResult(main) {
-  const won = state.bMyPts >= state.bOppPts;
+  const won = state.bMyPts > state.bOppPts;
+  const cls = won ? 'champion' : 'eliminated';
+  const borderCol = won ? 'rgba(180,120,30,0.7)' : 'var(--border)';
+  const bgCol = won ? 'rgba(180,120,30,0.07)' : 'var(--panel)';
+  const eventLabel = navEvent ? navEvent.label : 'the tournament';
+  main.innerHTML = `
+    <div class="result-screen ${cls}" style="border-color:${borderCol};background:${bgCol};">
+      <div class="screen-icon">${won ? '🥉' : '4️⃣'}</div>
+      <div class="screen-title" style="color:${won?'rgba(200,150,50,0.95)':'var(--muted)'}">
+        ${won ? 'Bronze Medalist' : 'Fourth Place'}
+      </div>
+      <div class="screen-sub">
+        ${won ? `You won the Bronze Medal at ${eventLabel}.` : 'You finished fourth — just outside the medals.'}
+        <br>Final: You ${state.bMyPts} – ${state.bOppPts} Opponent
+      </div>
+      <button class="next-btn" onclick="restartSame()">Try again →</button>
+    </div>
+    <button class="next-btn" style="margin-top:8px;" onclick="goHome()">← Choose division</button>
+    ${buildHistory()}`;
+}
   const cls = won ? 'champion' : 'eliminated';
   const borderCol = won ? 'rgba(180,120,30,0.7)' : 'var(--border)';
   const bgCol = won ? 'rgba(180,120,30,0.07)' : 'var(--panel)';
