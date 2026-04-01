@@ -677,8 +677,9 @@ function resolveMatchEnd() {
   const atSF  = state.roundIdx === sfIdx && d.rounds.length > 2;
   const atF   = state.roundIdx === fIdx;
 
+  // Save history here for non-SO endings.
+  // SO endings are saved by soNext() after the reveal screen.
   saveHistory(won, false);
-  state.phase = 'matchResult';
 
   if (won && atF)        { state.phase = 'gold'; }
   else if (!won && atF)  { state.phase = 'silver'; }
@@ -708,32 +709,36 @@ function confirmSO() {
 
   if (arrows.length < rules.soArrows) return;
 
+  // Points land in bronze buckets if we're in the bronze final
+  const myPtsKey  = state.inBronze ? 'bMyPts'  : 'myPts';
+  const oppPtsKey = state.inBronze ? 'bOppPts' : 'oppPts';
+
   if (rules.soArrows === 1) {
     // Individual SO — single arrow, compare values, 50/50 if tied
     const myRaw = arrows[0];
     state.soMyRaw = myRaw;
     const oppRaw = state.soOppRaw;
-    if (arrowScore(myRaw) > oppRaw)       { state.myPts++; }
-    else if (arrowScore(myRaw) < oppRaw)  { state.oppPts++; }
-    else { // tied value — 50/50
-      if (Math.random() < 0.5) state.myPts++; else state.oppPts++;
+    if (arrowScore(myRaw) > oppRaw)      { state[myPtsKey]++; }
+    else if (arrowScore(myRaw) < oppRaw) { state[oppPtsKey]++; }
+    else {
+      // tied value — 50/50
+      if (Math.random() < 0.5) state[myPtsKey]++; else state[oppPtsKey]++;
     }
   } else {
     // Multi-arrow SO — compare total, then closest single arrow on tie
     state.soMyArrows = [...arrows];
-    const myTotal  = arrows.reduce((s, v) => s + arrowScore(v), 0);
+    const myTotal   = arrows.reduce((s, v) => s + arrowScore(v), 0);
     const oppArrows = state.soOppArrows ||
       Array.from({ length: rules.soArrows }, () => rand([8,9,9,10,10,10]));
     state.soOppArrows = oppArrows;
     const oppTotal = oppArrows.reduce((s, v) => s + v, 0);
 
-    if (myTotal > oppTotal)       { state.myPts++; }
-    else if (myTotal < oppTotal)  { state.oppPts++; }
+    if (myTotal > oppTotal)      { state[myPtsKey]++; }
+    else if (myTotal < oppTotal) { state[oppPtsKey]++; }
     else {
-      // Compare best single arrow
       const myBest  = Math.max(...arrows.map(arrowScore));
       const oppBest = Math.max(...oppArrows);
-      if (myBest >= oppBest) state.myPts++; else state.oppPts++;
+      if (myBest >= oppBest) state[myPtsKey]++; else state[oppPtsKey]++;
     }
   }
 
@@ -744,9 +749,12 @@ function confirmSO() {
 
 function renderSOReveal(main) {
   const d = state.data;
-  const round = d.rounds[state.roundIdx];
   const rules = state.rules;
-  const won = state.myPts > state.oppPts;
+
+  // Read points from the correct bucket (bronze vs normal match)
+  const myP  = state.inBronze ? state.bMyPts  : state.myPts;
+  const opP  = state.inBronze ? state.bOppPts : state.oppPts;
+  const won  = myP > opP;
 
   let soHtml = '';
   if (rules.soArrows === 1) {
@@ -762,7 +770,7 @@ function renderSOReveal(main) {
       </div>
     </div>`;
   } else {
-    const myT = state.soMyArrows.reduce((s, v) => s + arrowScore(v), 0);
+    const myT  = state.soMyArrows.reduce((s, v) => s + arrowScore(v), 0);
     const oppT = state.soOppArrows.reduce((s, v) => s + v, 0);
     const myPips  = state.soMyArrows.map(v => `<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
     const oppPips = state.soOppArrows.map(v => `<span class="so-arrow-pip">${v}</span>`).join('');
@@ -781,6 +789,26 @@ function renderSOReveal(main) {
     </div>`;
   }
 
+  // Bronze SO resolves directly — no round advancement logic needed
+  if (state.inBronze) {
+    const nextLabel = won ? 'Collect your Bronze →' : 'See final standings →';
+    let html = `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+    html += `<div class="round-banner">
+      <div><div class="round-name" style="color:rgba(180,120,30,0.9)">Bronze Final</div><div class="round-sub">Shoot-off</div></div>
+    </div>`;
+    html += `<div class="result-card ${won ? 'win' : 'loss'}">
+      <div class="so-prompt">Shoot-off result</div>
+      ${soHtml}
+      <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
+      <div class="result-detail">You ${myP} – ${opP} Opp</div>
+    </div>
+    <button class="next-btn" onclick="bronzeSONext(${won})">${nextLabel}</button>`;
+    html += buildHistory();
+    main.innerHTML = html;
+    return;
+  }
+
+  const round = d.rounds[state.roundIdx];
   const sfIdx = d.rounds.length - 2;
   const fIdx  = d.rounds.length - 1;
   const atSF  = state.roundIdx === sfIdx && d.rounds.length > 2;
@@ -799,14 +827,23 @@ function renderSOReveal(main) {
     <div class="so-prompt">Shoot-off result</div>
     ${soHtml}
     <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
-    <div class="result-detail">You ${state.myPts} – ${state.oppPts} Opp</div>
+    <div class="result-detail">You ${myP} – ${opP} Opp</div>
   </div>
   <button class="next-btn" onclick="${nextFn}">${nextLabel}</button>`;
   html += buildHistory();
   main.innerHTML = html;
 }
 
+// Bronze SO resolved — save and go to result screen
+function bronzeSONext(won) {
+  saveHistory(won, true);
+  state.inBronze = false;
+  state.phase = 'bronzeResult';
+  render();
+}
+
 function soNext(won, isFinal) {
+  // Save history now — SO reveal is the end of this match
   saveHistory(won, false);
   const d = state.data;
   const sfIdx = d.rounds.length - 2;
@@ -851,6 +888,7 @@ function renderMatchResult(main) {
 }
 
 function matchNext(won) {
+  // History already saved by resolveMatchEnd. Just advance state.
   const d = state.data;
   const sfIdx = d.rounds.length - 2;
   if (!won && state.roundIdx === sfIdx && d.rounds.length > 2) {
@@ -956,8 +994,9 @@ function confirmBronzeArrows(arrows, total) {
 }
 
 function resolveBronze() {
-  const won = state.bMyPts > state.bOppPts ||
-    (state.bMyPts === state.bOppPts && Math.random() < 0.5);
+  // Called only when bronze ends without SO (clear winner on points).
+  // Bronze SO endings are handled by bronzeSONext().
+  const won = state.bMyPts > state.bOppPts;
   saveHistory(won, true);
   state.inBronze = false;
   state.phase = 'bronzeResult';
