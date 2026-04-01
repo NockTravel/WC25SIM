@@ -1,0 +1,1351 @@
+// ── ARCHERY TOURNAMENT SIMULATOR ─────────────────────────────────────────────
+// app.js — Build 1: Outdoor individual (recurve + compound)
+// Rules are hardcoded in DIVISION_RULES below. Data files only supply scores.
+
+// ── DIVISION RULES ────────────────────────────────────────────────────────────
+// Single source of truth for all game logic parameters.
+// scoring:      'sets'  → set-point system (recurve / barebow)
+//               'total' → cumulative score (compound)
+// arrowsPerEnd: arrows shot per set or end
+// numEnds:      total sets or ends in a match
+// maxArrowVal:  highest legal single-arrow score
+// allowX:       whether X (internal value 11, scores as 10) is tracked
+// soArrows:     arrows in shoot-off
+// soMaxVal:     max value per SO arrow
+// winPts:       set points needed to win a match (sets scoring only)
+// maxEnd:       max score achievable in one end (total scoring only)
+
+const DIVISION_RULES = {
+  // ── OUTDOOR / INDOOR INDIVIDUAL ───────────────────────────────────────────
+  recurve_individual: {
+    scoring: 'sets', arrowsPerEnd: 3, numEnds: 5,
+    maxArrowVal: 10, allowX: true,
+    soArrows: 1, soMaxVal: 10,
+    winPts: 6
+  },
+  compound_individual: {
+    scoring: 'total', arrowsPerEnd: 3, numEnds: 5,
+    maxArrowVal: 10, allowX: true,
+    soArrows: 1, soMaxVal: 10,
+    maxEnd: 30
+  },
+  barebow_individual: {
+    scoring: 'sets', arrowsPerEnd: 3, numEnds: 5,
+    maxArrowVal: 10, allowX: false,
+    soArrows: 1, soMaxVal: 10,
+    winPts: 6
+  },
+
+  // ── OUTDOOR / INDOOR TEAM (3 archers) ────────────────────────────────────
+  recurve_team: {
+    scoring: 'sets', arrowsPerEnd: 6, numEnds: 4,
+    maxArrowVal: 10, allowX: true,
+    soArrows: 3, soMaxVal: 10,
+    winPts: 5
+  },
+  compound_team: {
+    scoring: 'total', arrowsPerEnd: 6, numEnds: 4,
+    maxArrowVal: 10, allowX: true,
+    soArrows: 3, soMaxVal: 10,
+    maxEnd: 60
+  },
+  barebow_team: {
+    scoring: 'sets', arrowsPerEnd: 6, numEnds: 4,
+    maxArrowVal: 10, allowX: false,
+    soArrows: 3, soMaxVal: 10,
+    winPts: 5
+  },
+
+  // ── OUTDOOR / INDOOR MIXED TEAM (1M + 1W) ────────────────────────────────
+  recurve_mixed_team: {
+    scoring: 'sets', arrowsPerEnd: 4, numEnds: 4,
+    maxArrowVal: 10, allowX: true,
+    soArrows: 2, soMaxVal: 10,
+    winPts: 5
+  },
+  compound_mixed_team: {
+    scoring: 'total', arrowsPerEnd: 4, numEnds: 4,
+    maxArrowVal: 10, allowX: true,
+    soArrows: 2, soMaxVal: 10,
+    maxEnd: 40
+  },
+  barebow_mixed_team: {
+    scoring: 'sets', arrowsPerEnd: 4, numEnds: 4,
+    maxArrowVal: 10, allowX: false,
+    soArrows: 2, soMaxVal: 10,
+    winPts: 5
+  },
+
+  // ── FIELD INDIVIDUAL (recurve / compound / barebow all same) ──────────────
+  // Early rounds: 6 targets, semi/final: 4 targets — handled via round config
+  field_individual: {
+    scoring: 'total', arrowsPerEnd: 3, numEnds: 6,   // overridden per round
+    maxArrowVal: 6, allowX: false,
+    soArrows: 1, soMaxVal: 6,
+    maxEnd: 18
+  },
+
+  // ── FIELD MIXED TEAM ──────────────────────────────────────────────────────
+  field_mixed_team: {
+    scoring: 'total', arrowsPerEnd: 4, numEnds: 4,
+    maxArrowVal: 6, allowX: false,
+    soArrows: 2, soMaxVal: 6,
+    maxEnd: 24
+  },
+
+  // ── FIELD MIXED BOW TEAM (1 recurve + 1 compound + 1 barebow) ────────────
+  field_mixed_bow_team: {
+    scoring: 'total', arrowsPerEnd: 3, numEnds: 4,
+    maxArrowVal: 6, allowX: false,
+    soArrows: 3, soMaxVal: 6,
+    maxEnd: 18
+  },
+};
+
+// ── DIVISION KEY → RULE SET MAPPING ──────────────────────────────────────────
+// Maps the division filename key to the correct rule set above.
+function getRules(divisionKey) {
+  const k = divisionKey;
+  // Field mixed bow team
+  if (k.includes('mixed_bow_team')) return DIVISION_RULES.field_mixed_bow_team;
+  // Field mixed team
+  if (k.startsWith('field_') && k.includes('mixed_team')) return DIVISION_RULES.field_mixed_team;
+  // Field individual
+  if (k.startsWith('field_')) return DIVISION_RULES.field_individual;
+  // Compound team (not mixed)
+  if (k.startsWith('compound') && k.includes('_team') && !k.includes('mixed')) return DIVISION_RULES.compound_team;
+  // Compound mixed team
+  if (k.startsWith('compound') && k.includes('mixed_team')) return DIVISION_RULES.compound_mixed_team;
+  // Compound individual
+  if (k.startsWith('compound')) return DIVISION_RULES.compound_individual;
+  // Barebow team
+  if (k.startsWith('barebow') && k.includes('_team') && !k.includes('mixed')) return DIVISION_RULES.barebow_team;
+  // Barebow mixed team
+  if (k.startsWith('barebow') && k.includes('mixed_team')) return DIVISION_RULES.barebow_mixed_team;
+  // Barebow individual
+  if (k.startsWith('barebow')) return DIVISION_RULES.barebow_individual;
+  // Recurve team (not mixed)
+  if (k.includes('_team') && !k.includes('mixed')) return DIVISION_RULES.recurve_team;
+  // Recurve mixed team
+  if (k.includes('mixed_team')) return DIVISION_RULES.recurve_mixed_team;
+  // Recurve individual (default)
+  return DIVISION_RULES.recurve_individual;
+}
+
+// ── BOW TYPE → DIVISION KEYS ──────────────────────────────────────────────────
+// Used for preflight checks — only check the sentinel division for the selected bow type.
+const BOW_SENTINELS = {
+  recurve:  ['recurve_women', 'recurve_men'],
+  compound: ['compound_women', 'compound_men'],
+  barebow:  ['barebow_women', 'barebow_men'],
+};
+
+// ── DIVISION CATALOGUE ────────────────────────────────────────────────────────
+const DIVISION_CATALOGUE = {
+  recurve: [
+    { id: 'recurve_women',       name: 'Women',        sub: 'Individual · Set points' },
+    { id: 'recurve_men',         name: 'Men',          sub: 'Individual · Set points' },
+    { id: 'recurve_u21_women',   name: 'U21 Women',    sub: 'Individual · Set points' },
+    { id: 'recurve_u21_men',     name: 'U21 Men',      sub: 'Individual · Set points' },
+    { id: 'recurve_u18_women',   name: 'U18 Women',    sub: 'Individual · Set points' },
+    { id: 'recurve_u18_men',     name: 'U18 Men',      sub: 'Individual · Set points' },
+    { id: 'recurve_u15_women',   name: 'U15 Women',    sub: 'Individual · Set points' },
+    { id: 'recurve_u15_men',     name: 'U15 Men',      sub: 'Individual · Set points' },
+    { id: 'recurve_u13_women',   name: 'U13 Women',    sub: 'Individual · Set points' },
+    { id: 'recurve_u13_men',     name: 'U13 Men',      sub: 'Individual · Set points' },
+    { id: 'recurve_50plus_women',name: '50+ Women',    sub: 'Individual · Set points' },
+    { id: 'recurve_50plus_men',  name: '50+ Men',      sub: 'Individual · Set points' },
+    { id: 'recurve_mixed_team',  name: 'Mixed Team',   sub: '1M+1W · Set points' },
+    { id: 'recurve_women_team',  name: 'Women Team',   sub: '3 archer · Set points' },
+    { id: 'recurve_men_team',    name: 'Men Team',     sub: '3 archer · Set points' },
+    { id: 'recurve_u21_mixed_team', name: 'U21 Mixed Team', sub: '1M+1W · Set points' },
+  ],
+  compound: [
+    { id: 'compound_women',          name: 'Women',          sub: 'Individual · Total score' },
+    { id: 'compound_men',            name: 'Men',            sub: 'Individual · Total score' },
+    { id: 'compound_u21_women',      name: 'U21 Women',      sub: 'Individual · Total score' },
+    { id: 'compound_u21_men',        name: 'U21 Men',        sub: 'Individual · Total score' },
+    { id: 'compound_u18_women',      name: 'U18 Women',      sub: 'Individual · Total score' },
+    { id: 'compound_u18_men',        name: 'U18 Men',        sub: 'Individual · Total score' },
+    { id: 'compound_50plus_women',   name: '50+ Women',      sub: 'Individual · Total score' },
+    { id: 'compound_50plus_men',     name: '50+ Men',        sub: 'Individual · Total score' },
+    { id: 'compound_mixed_team',     name: 'Mixed Team',     sub: '1M+1W · Total score' },
+    { id: 'compound_women_team',     name: 'Women Team',     sub: '3 archer · Total score' },
+    { id: 'compound_men_team',       name: 'Men Team',       sub: '3 archer · Total score' },
+    { id: 'compound_u21_mixed_team', name: 'U21 Mixed Team', sub: '1M+1W · Total score' },
+  ],
+  barebow: [
+    { id: 'barebow_women',           name: 'Women',          sub: 'Individual · Set points' },
+    { id: 'barebow_men',             name: 'Men',            sub: 'Individual · Set points' },
+    { id: 'barebow_u21_women',       name: 'U21 Women',      sub: 'Individual · Set points' },
+    { id: 'barebow_u21_men',         name: 'U21 Men',        sub: 'Individual · Set points' },
+    { id: 'barebow_u18_women',       name: 'U18 Women',      sub: 'Individual · Set points' },
+    { id: 'barebow_u18_men',         name: 'U18 Men',        sub: 'Individual · Set points' },
+    { id: 'barebow_mixed_team',      name: 'Mixed Team',     sub: '1M+1W · Set points' },
+    { id: 'barebow_women_team',      name: 'Women Team',     sub: '3 archer · Set points' },
+    { id: 'barebow_men_team',        name: 'Men Team',       sub: '3 archer · Set points' },
+    { id: 'barebow_u21_mixed_team',  name: 'U21 Mixed Team', sub: '1M+1W · Set points' },
+    { id: 'mixed_bow_team_women',    name: 'Mixed Bow Women',sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_men',      name: 'Mixed Bow Men',  sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_u21_women',name: 'Mixed Bow U21 W',sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_u21_men',  name: 'Mixed Bow U21 M',sub: 'Field · R+C+B' },
+  ],
+};
+
+// ── NAVIGATION STATE ──────────────────────────────────────────────────────────
+let navBowType  = null;   // 'recurve' | 'compound' | 'barebow'
+let navCategory = null;   // 'outdoor' | 'field' | 'indoor'
+let navDiv      = null;   // selected division key string
+let navEvent    = null;   // event object from manifest
+let eventAvailability = {}; // { 'eventId': true|false } populated after preflight
+
+// ── GAME STATE ────────────────────────────────────────────────────────────────
+let state = null;
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function $(id) { return document.getElementById(id); }
+
+function rand(arr) {
+  const clean = arr.filter(v => typeof v === 'number' && isFinite(v));
+  return clean[Math.floor(Math.random() * clean.length)];
+}
+
+function arrowDisplayStr(v) {
+  if (v === 11) return 'X';
+  if (v === 0)  return 'M';
+  return String(v);
+}
+
+function arrowScore(v) {
+  if (v === 11) return 10;   // X counts as 10
+  return v;
+}
+
+// Break a match total into per-end scores that sum correctly
+function decomposeTotal(total, numEnds, endMax, endMin) {
+  const min = endMin !== undefined ? endMin : Math.floor(endMax * 0.72);
+  let remaining = total;
+  const ends = [];
+  for (let i = 0; i < numEnds - 1; i++) {
+    const slotsLeft = numEnds - i;
+    const lo = Math.max(min, remaining - endMax * (slotsLeft - 1));
+    const hi = Math.min(endMax, remaining - min * (slotsLeft - 1));
+    const avg = remaining / slotsLeft;
+    const variance = Math.min(endMax - avg, avg - min, 2);
+    let val = Math.round(avg + (Math.random() * variance * 2 - variance));
+    val = Math.max(lo, Math.min(hi, val));
+    ends.push(val);
+    remaining -= val;
+  }
+  ends.push(remaining);
+  return ends;
+}
+
+// Break an end total into individual arrow values
+function decomposeEnd(endTotal, numArrows, maxArrowVal, allowX) {
+  const result = [];
+  let remaining = endTotal;
+  for (let i = 0; i < numArrows - 1; i++) {
+    const left = numArrows - i;
+    const lo = Math.max(0, remaining - maxArrowVal * (left - 1));
+    const hi = Math.min(maxArrowVal, remaining);
+    const avg = remaining / left;
+    const jitter = Math.min(1.5, avg - lo, hi - avg);
+    let val = Math.round(avg + (Math.random() * jitter * 2 - jitter));
+    val = Math.max(lo, Math.min(hi, val));
+    result.push(val);
+    remaining -= val;
+  }
+  result.push(Math.max(0, remaining));
+  // Randomly promote 10s to X when allowed
+  if (allowX) {
+    return result.map(v => (v === 10 && Math.random() < 0.3) ? 11 : v);
+  }
+  return result;
+}
+
+// ── PREFLIGHT: CHECK FILE AVAILABILITY ───────────────────────────────────────
+// For each event, HEAD-request the sentinel division file for the selected bow type.
+// Marks events as available or not before the user reaches the event picker.
+function preflightEvents(bowType, callback) {
+  const m = window.EVENT_MANIFEST;
+  if (!m) { callback(); return; }
+
+  const sentinels = BOW_SENTINELS[bowType] || [];
+  const allEvents = [];
+  Object.values(m).forEach(cat => cat.events.forEach(ev => allEvents.push(ev)));
+
+  let remaining = allEvents.length;
+  if (remaining === 0) { callback(); return; }
+
+  allEvents.forEach(ev => {
+    // Find first sentinel division this event actually lists
+    const sentinel = sentinels.find(s => ev.divisions && ev.divisions.includes(s));
+    if (!sentinel) {
+      // Event has no division for this bow type — mark unavailable
+      eventAvailability[ev.id] = false;
+      remaining--;
+      if (remaining === 0) callback();
+      return;
+    }
+
+    const url = `${ev.folder}/${sentinel}.js`;
+    fetch(url, { method: 'HEAD' })
+      .then(r => {
+        eventAvailability[ev.id] = r.ok;
+      })
+      .catch(() => {
+        eventAvailability[ev.id] = false;
+      })
+      .finally(() => {
+        remaining--;
+        if (remaining === 0) callback();
+      });
+  });
+}
+
+// ── LOAD DIVISION FILE ────────────────────────────────────────────────────────
+// Injects a division script tag. Calls callback(data) on success, callback(null) on failure.
+// The file must register:  window.DIV_{normalisedEventId}_{divisionKey}
+function normId(id) { return id.replace(/-/g, '_'); }
+
+function divGlobalKey(eventId, divKey) {
+  return `DIV_${normId(eventId)}_${divKey}`;
+}
+
+function loadDivision(ev, divKey, callback) {
+  const key = divGlobalKey(ev.id, divKey);
+  if (window[key]) { callback(window[key]); return; }
+
+  const path = `${ev.folder}/${divKey}.js`;
+  const script = document.createElement('script');
+  script.src = path;
+  script.onload = () => {
+    const data = window[key];
+    if (!data) {
+      console.warn(`File loaded but global '${key}' not found. Check the file registers the correct key.`);
+    }
+    callback(data || null);
+  };
+  script.onerror = () => {
+    console.error(`Failed to load: ${path}`);
+    callback(null);
+  };
+  document.body.appendChild(script);
+}
+
+// ── RENDER DISPATCH ───────────────────────────────────────────────────────────
+function render() {
+  const main = $('main');
+  if (!main) return;
+
+  if (!state) {
+    if (!navBowType)  { renderBowTypePicker(main); return; }
+    if (!navDiv)      { renderDivisionPicker(main); return; }
+    if (!navCategory) { renderDisciplinePicker(main); return; }
+    if (!navEvent)    { renderEventPicker(main); return; }
+    renderConfirmStart(main);
+    return;
+  }
+
+  switch (state.phase) {
+    case 'playing':      renderPlaying(main);      break;
+    case 'shootoff':     renderShootoff(main);      break;
+    case 'soReveal':     renderSOReveal(main);       break;
+    case 'matchResult':  renderMatchResult(main);   break;
+    case 'bronze':       renderBronze(main);        break;
+    case 'bronzeResult': renderBronzeResult(main);  break;
+    case 'silver':       renderMedal('silver', main); break;
+    case 'gold':         renderMedal('gold', main);   break;
+    case 'eliminated':   renderEliminated(main);    break;
+  }
+}
+
+// ── BOW TYPE PICKER ───────────────────────────────────────────────────────────
+function renderBowTypePicker(main) {
+  const types = [
+    { id: 'recurve',  icon: '🏹', name: 'Recurve',  sub: 'Set points · 3 arrows per set' },
+    { id: 'compound', icon: '⚙️', name: 'Compound', sub: 'Total score · 3 arrows per end' },
+    { id: 'barebow',  icon: '🎯', name: 'Barebow',  sub: 'Set points · No sights or stabilisers' },
+  ];
+  main.innerHTML = `
+    <div class="nav-section-label">Choose bow type</div>
+    <div class="nav-list">
+      ${types.map(t => `
+        <div class="nav-card" onclick="selectBowType('${t.id}')">
+          <span class="nav-icon">${t.icon}</span>
+          <div style="flex:1">
+            <div class="nav-name">${t.name}</div>
+            <div class="nav-sub">${t.sub}</div>
+          </div>
+          <span class="nav-arrow">›</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function selectBowType(bt) {
+  navBowType = bt;
+  navDiv = null;
+  navCategory = null;
+  navEvent = null;
+  eventAvailability = {};
+  render();
+}
+
+// ── DIVISION PICKER ───────────────────────────────────────────────────────────
+function renderDivisionPicker(main) {
+  const divs = DIVISION_CATALOGUE[navBowType] || [];
+  const label = navBowType.charAt(0).toUpperCase() + navBowType.slice(1);
+  main.innerHTML = `
+    <button class="back-btn" onclick="navBowType=null;render()">← Bow type</button>
+    <div class="nav-section-label">${label} · Choose division</div>
+    <div class="division-grid">
+      ${divs.map(d => `
+        <div class="div-card${navDiv === d.id ? ' selected' : ''}" onclick="selectDiv('${d.id}')">
+          <div class="div-name">${d.name}</div>
+          <div class="div-sub">${d.sub}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function selectDiv(id) {
+  navDiv = id;
+  navCategory = null;
+  navEvent = null;
+  render();
+}
+
+// ── DISCIPLINE PICKER ─────────────────────────────────────────────────────────
+function renderDisciplinePicker(main) {
+  const m = window.EVENT_MANIFEST;
+  if (!m) { main.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">Loading...</p>'; return; }
+
+  // Filter categories that have at least one event listing this division
+  const cats = Object.entries(m).filter(([, cat]) =>
+    cat.events.some(ev => ev.divisions && ev.divisions.includes(navDiv))
+  );
+
+  main.innerHTML = `
+    <button class="back-btn" onclick="navDiv=null;render()">← Divisions</button>
+    <div class="nav-section-label">Choose discipline</div>
+    <div class="nav-list">
+      ${cats.map(([key, cat]) => `
+        <div class="nav-card" onclick="selectCategory('${key}')">
+          <span class="nav-icon">${cat.icon}</span>
+          <div style="flex:1">
+            <div class="nav-name">${cat.label}</div>
+          </div>
+          <span class="nav-arrow">›</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function selectCategory(key) {
+  navCategory = key;
+  navEvent = null;
+  eventAvailability = {};
+  // Show loading state while preflight runs
+  const main = $('main');
+  main.innerHTML = `
+    <button class="back-btn" onclick="navCategory=null;render()">← Disciplines</button>
+    <div class="checking-indicator"><div class="spinner"></div>Checking events…</div>`;
+
+  preflightEvents(navBowType, () => render());
+}
+
+// ── EVENT PICKER ──────────────────────────────────────────────────────────────
+function renderEventPicker(main) {
+  const m = window.EVENT_MANIFEST;
+  const cat = m[navCategory];
+
+  // Only show events that list this division
+  const events = cat.events.filter(ev => ev.divisions && ev.divisions.includes(navDiv));
+
+  main.innerHTML = `
+    <button class="back-btn" onclick="navCategory=null;render()">← Disciplines</button>
+    <div class="nav-section-label">${cat.icon} ${cat.label}</div>
+    <div class="nav-list">
+      ${events.map(ev => {
+        const available = eventAvailability[ev.id] !== false;
+        const dimCls = available ? '' : ' dim';
+        const badge = available
+          ? '<span class="nav-arrow">›</span>'
+          : '<span class="nav-badge">Coming Soon</span>';
+        const click = available ? `onclick="selectEvent('${ev.id}')"` : '';
+        return `<div class="nav-card${dimCls}" ${click}>
+          <div style="flex:1">
+            <div class="nav-name">${ev.label}</div>
+            <div class="nav-sub">${ev.sub}</div>
+          </div>
+          ${badge}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function selectEvent(eventId) {
+  const cat = window.EVENT_MANIFEST[navCategory];
+  navEvent = cat.events.find(e => e.id === eventId);
+  render();
+}
+
+// ── CONFIRM START ─────────────────────────────────────────────────────────────
+function renderConfirmStart(main) {
+  const divLabel = getDivisionLabel(navDiv);
+  main.innerHTML = `
+    <button class="back-btn" onclick="navEvent=null;render()">← Events</button>
+    <div class="confirm-block">
+      <div class="confirm-event">${navEvent.label}</div>
+      <div class="confirm-sub">${navEvent.sub}</div>
+      <div class="confirm-div">${divLabel}</div>
+    </div>
+    <button class="start-btn" onclick="startTournament()">Enter the Tournament →</button>`;
+}
+
+function getDivisionLabel(divKey) {
+  const all = Object.values(DIVISION_CATALOGUE).flat();
+  const found = all.find(d => d.id === divKey);
+  return found ? found.name : divKey;
+}
+
+// ── START TOURNAMENT ──────────────────────────────────────────────────────────
+function startTournament() {
+  // Show loading while division file is fetched
+  const main = $('main');
+  main.innerHTML = `<div class="checking-indicator" style="justify-content:center;padding:48px 20px"><div class="spinner"></div>Loading…</div>`;
+
+  loadDivision(navEvent, navDiv, (data) => {
+    if (!data) {
+      main.innerHTML = `
+        <button class="back-btn" onclick="navEvent=null;render()">← Events</button>
+        <div style="padding:32px 20px;text-align:center;color:var(--muted);font-size:13px;">
+          Could not load division data.<br>Please check the file exists and registers the correct key.
+        </div>`;
+      return;
+    }
+
+    const rules = getRules(navDiv);
+    state = {
+      div:   navDiv,
+      data:  data,
+      rules: rules,
+      roundIdx: 0,
+      phase: 'playing',
+      history: [],
+      // set-point match state
+      myScores:  [], oppScores: [], myPts: 0, oppPts: 0,
+      // total-score match state
+      myEnds: [], oppEnds: [], oppMatchEnds: null,
+      // arrows currently being entered
+      arrows: [],
+      arrowTarget: rules.arrowsPerEnd,
+      // shoot-off
+      soOppRaw: null, soMyRaw: null,
+      soOppArrows: null, soMyArrows: null,
+      // bronze final parallel state
+      inBronze: false,
+      bMyScores: [], bOppScores: [], bMyPts: 0, bOppPts: 0,
+      bMyEnds: [], bOppEnds: [], bOppMatchEnds: null,
+    };
+    render();
+  });
+}
+
+// ── PLAYING ───────────────────────────────────────────────────────────────────
+function renderPlaying(main) {
+  const d = state.data;
+  const round = d.rounds[state.roundIdx];
+  const rules = state.rules;
+  const isSet = rules.scoring === 'sets';
+
+  let html = backBtn();
+  html += roundBanner(round, state.roundIdx, d.rounds.length);
+  html += isSet ? buildSetBoard() : buildTotalBoard();
+  html += buildArrowZone(false);
+  html += buildHistory();
+  main.innerHTML = html;
+}
+
+// ── CONFIRM ARROWS ────────────────────────────────────────────────────────────
+function confirmArrows() {
+  const arrows = state.arrows || [];
+  if (arrows.length < state.arrowTarget) return;
+
+  const total = arrows.reduce((s, v) => s + arrowScore(v), 0);
+  state.arrows = [];
+
+  if (state.inBronze) {
+    confirmBronzeArrows(arrows, total);
+    return;
+  }
+
+  const rules = state.rules;
+  const round = state.data.rounds[state.roundIdx];
+
+  if (rules.scoring === 'sets') {
+    submitSet(arrows, total, round);
+  } else {
+    submitEnd(arrows, total, round);
+  }
+  render();
+}
+
+function submitSet(arrows, total, round) {
+  const rules = state.rules;
+  const pool = state.data.sets[round.key];
+  const setNum = state.myScores.length + 1;
+  // Draw opponent score from pool for this set number, fall back to set 1
+  const oppScore = rand(pool[setNum] || pool[1]);
+
+  state.myScores.push({ arrows: [...arrows], total });
+  state.oppScores.push(oppScore);
+
+  if (total > oppScore)      { state.myPts += 2; }
+  else if (total < oppScore) { state.oppPts += 2; }
+  else                       { state.myPts++; state.oppPts++; }
+
+  checkSetMatchEnd(rules, pool);
+}
+
+function checkSetMatchEnd(rules, pool) {
+  const { numEnds, winPts } = rules;
+  const played = state.myScores.length;
+  const left = numEnds - played;
+  const myP = state.myPts, opP = state.oppPts;
+
+  // Win condition: reached winPts and opponent cannot catch up
+  const myWon  = myP >= winPts && myP > opP;
+  const oppWon = opP >= winPts && opP > myP;
+  // Exhausted all ends
+  const allDone = played >= numEnds;
+
+  if (myWon || oppWon || allDone) {
+    if (myP === opP) {
+      // Shoot-off
+      state.soOppRaw = rand(pool.so || [8, 9, 9, 10, 10]);
+      state.arrows = [];
+      state.phase = 'shootoff';
+    } else {
+      resolveMatchEnd();
+    }
+  }
+}
+
+function submitEnd(arrows, total, round) {
+  const rules = state.rules;
+  if (!state.oppMatchEnds) {
+    drawOppEnds(rules, round.key);
+  }
+  const endIdx = state.myEnds.length;
+  state.myEnds.push({ arrows: [...arrows], total });
+  state.oppEnds.push(state.oppMatchEnds[endIdx]);
+
+  if (state.myEnds.length >= rules.numEnds) {
+    state.myPts = state.myEnds.reduce((s, v) => s + v.total, 0);
+    state.oppPts = state.oppEnds.reduce((s, v) => s + v.total, 0);
+    if (state.myPts === state.oppPts) {
+      // Draw oppSO from data
+      const soPool = state.data.so;
+      if (soPool && Array.isArray(soPool[0])) {
+        state.soOppArrows = rand(soPool);
+      } else {
+        state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand([8,9,9,10,10,10]));
+      }
+      state.arrows = [];
+      state.phase = 'shootoff';
+    } else {
+      resolveMatchEnd();
+    }
+  }
+}
+
+function drawOppEnds(rules, roundKey) {
+  const oppTotal = rand(state.data.scores[roundKey]);
+  const endTotals = decomposeTotal(oppTotal, rules.numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
+  state.oppMatchEnds = endTotals.map(t => ({
+    total: t,
+    arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX)
+  }));
+}
+
+// ── RESOLVE MATCH END ─────────────────────────────────────────────────────────
+function resolveMatchEnd() {
+  const d = state.data;
+  const won = state.myPts > state.oppPts;
+  const sfIdx = d.rounds.length - 2;
+  const fIdx  = d.rounds.length - 1;
+  const atSF  = state.roundIdx === sfIdx && d.rounds.length > 2;
+  const atF   = state.roundIdx === fIdx;
+
+  saveHistory(won, false);
+  state.phase = 'matchResult';
+
+  if (won && atF)        { state.phase = 'gold'; }
+  else if (!won && atF)  { state.phase = 'silver'; }
+  else if (!won && atSF) { initBronze(); }
+  else if (won)          { state.phase = 'matchResult'; }
+  else                   { state.phase = 'eliminated'; }
+}
+
+// ── SHOOT-OFF ─────────────────────────────────────────────────────────────────
+function renderShootoff(main) {
+  const d = state.data;
+  const round = d.rounds[state.roundIdx];
+  const rules = state.rules;
+  const isSet = rules.scoring === 'sets';
+
+  let html = backBtn();
+  html += roundBanner(round, state.roundIdx, d.rounds.length);
+  html += isSet ? buildSetBoard() : buildTotalBoard();
+  html += buildArrowZone(true);
+  html += buildHistory();
+  main.innerHTML = html;
+}
+
+function confirmSO() {
+  const arrows = state.arrows || [];
+  const rules = state.rules;
+
+  if (arrows.length < rules.soArrows) return;
+
+  if (rules.soArrows === 1) {
+    // Individual SO — single arrow, compare values, 50/50 if tied
+    const myRaw = arrows[0];
+    state.soMyRaw = myRaw;
+    const oppRaw = state.soOppRaw;
+    if (arrowScore(myRaw) > oppRaw)       { state.myPts++; }
+    else if (arrowScore(myRaw) < oppRaw)  { state.oppPts++; }
+    else { // tied value — 50/50
+      if (Math.random() < 0.5) state.myPts++; else state.oppPts++;
+    }
+  } else {
+    // Multi-arrow SO — compare total, then closest single arrow on tie
+    state.soMyArrows = [...arrows];
+    const myTotal  = arrows.reduce((s, v) => s + arrowScore(v), 0);
+    const oppArrows = state.soOppArrows ||
+      Array.from({ length: rules.soArrows }, () => rand([8,9,9,10,10,10]));
+    state.soOppArrows = oppArrows;
+    const oppTotal = oppArrows.reduce((s, v) => s + v, 0);
+
+    if (myTotal > oppTotal)       { state.myPts++; }
+    else if (myTotal < oppTotal)  { state.oppPts++; }
+    else {
+      // Compare best single arrow
+      const myBest  = Math.max(...arrows.map(arrowScore));
+      const oppBest = Math.max(...oppArrows);
+      if (myBest >= oppBest) state.myPts++; else state.oppPts++;
+    }
+  }
+
+  state.arrows = [];
+  state.phase = 'soReveal';
+  render();
+}
+
+function renderSOReveal(main) {
+  const d = state.data;
+  const round = d.rounds[state.roundIdx];
+  const rules = state.rules;
+  const won = state.myPts > state.oppPts;
+
+  let soHtml = '';
+  if (rules.soArrows === 1) {
+    soHtml = `<div class="so-reveal">
+      <div class="so-col">
+        <div class="so-val" style="color:var(--muted)">${state.soOppRaw}</div>
+        <div class="so-lbl">Opponent</div>
+      </div>
+      <div class="so-vs">vs</div>
+      <div class="so-col">
+        <div class="so-val" style="color:var(--gold-light)">${arrowDisplayStr(state.soMyRaw)}</div>
+        <div class="so-lbl">You</div>
+      </div>
+    </div>`;
+  } else {
+    const myT = state.soMyArrows.reduce((s, v) => s + arrowScore(v), 0);
+    const oppT = state.soOppArrows.reduce((s, v) => s + v, 0);
+    const myPips  = state.soMyArrows.map(v => `<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
+    const oppPips = state.soOppArrows.map(v => `<span class="so-arrow-pip">${v}</span>`).join('');
+    soHtml = `<div class="so-reveal">
+      <div class="so-col">
+        <div class="so-val" style="color:var(--muted)">${oppT}</div>
+        <div class="so-arrows">${oppPips}</div>
+        <div class="so-lbl">Opponent</div>
+      </div>
+      <div class="so-vs">vs</div>
+      <div class="so-col">
+        <div class="so-val" style="color:var(--gold-light)">${myT}</div>
+        <div class="so-arrows">${myPips}</div>
+        <div class="so-lbl">You</div>
+      </div>
+    </div>`;
+  }
+
+  const sfIdx = d.rounds.length - 2;
+  const fIdx  = d.rounds.length - 1;
+  const atSF  = state.roundIdx === sfIdx && d.rounds.length > 2;
+  const atF   = state.roundIdx === fIdx;
+
+  let nextLabel, nextFn;
+  if      (won && atF)   { nextLabel = 'Collect your Gold →';    nextFn = `soNext(true,true)`; }
+  else if (!won && atF)  { nextLabel = 'Collect your Silver →';  nextFn = `soNext(false,true)`; }
+  else if (!won && atSF) { nextLabel = 'Bronze Final →';         nextFn = `soNext(false,false)`; }
+  else if (won)          { nextLabel = `Advance to ${d.rounds[state.roundIdx+1].label} →`; nextFn = `soNext(true,false)`; }
+  else                   { nextLabel = 'View your run →';        nextFn = `soNext(false,false)`; }
+
+  let html = backBtn();
+  html += roundBanner(round, state.roundIdx, d.rounds.length);
+  html += `<div class="result-card ${won ? 'win' : 'loss'}">
+    <div class="so-prompt">Shoot-off result</div>
+    ${soHtml}
+    <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
+    <div class="result-detail">You ${state.myPts} – ${state.oppPts} Opp</div>
+  </div>
+  <button class="next-btn" onclick="${nextFn}">${nextLabel}</button>`;
+  html += buildHistory();
+  main.innerHTML = html;
+}
+
+function soNext(won, isFinal) {
+  saveHistory(won, false);
+  const d = state.data;
+  const sfIdx = d.rounds.length - 2;
+  if (isFinal) {
+    state.phase = won ? 'gold' : 'silver';
+  } else if (!won && state.roundIdx === sfIdx && d.rounds.length > 2) {
+    initBronze();
+  } else if (won) {
+    advanceRound();
+    state.phase = 'playing';
+  } else {
+    state.phase = 'eliminated';
+  }
+  render();
+}
+
+// ── MATCH RESULT ──────────────────────────────────────────────────────────────
+function renderMatchResult(main) {
+  const d = state.data;
+  const round = d.rounds[state.roundIdx];
+  const won = state.myPts > state.oppPts;
+  const rules = state.rules;
+
+  let nextLabel, nextFn;
+  if (won) {
+    nextLabel = `Advance to ${d.rounds[state.roundIdx+1].label} →`;
+    nextFn = `matchNext(true)`;
+  } else {
+    nextLabel = 'View your run →';
+    nextFn = `matchNext(false)`;
+  }
+
+  let html = backBtn();
+  html += roundBanner(round, state.roundIdx, d.rounds.length);
+  html += `<div class="result-card ${won ? 'win' : 'loss'}">
+    <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
+    <div class="result-detail">${rules.scoring === 'sets' ? 'Points' : 'Score'}: You ${state.myPts} – ${state.oppPts} Opp</div>
+  </div>
+  <button class="next-btn" onclick="${nextFn}">${nextLabel}</button>`;
+  html += buildHistory();
+  main.innerHTML = html;
+}
+
+function matchNext(won) {
+  const d = state.data;
+  const sfIdx = d.rounds.length - 2;
+  if (!won && state.roundIdx === sfIdx && d.rounds.length > 2) {
+    initBronze(); render();
+  } else if (won) {
+    advanceRound(); state.phase = 'playing'; render();
+  } else {
+    state.phase = 'eliminated'; render();
+  }
+}
+
+// ── ADVANCE ROUND ─────────────────────────────────────────────────────────────
+function advanceRound() {
+  state.roundIdx++;
+  state.myScores = []; state.oppScores = [];
+  state.myEnds   = []; state.oppEnds   = [];
+  state.myPts    = 0;  state.oppPts    = 0;
+  state.oppMatchEnds = null;
+  state.soOppRaw = null; state.soMyRaw = null;
+  state.soOppArrows = null; state.soMyArrows = null;
+  state.arrows = [];
+  state.arrowTarget = state.rules.arrowsPerEnd;
+}
+
+// ── BRONZE FINAL ──────────────────────────────────────────────────────────────
+function initBronze() {
+  state.inBronze = true;
+  state.bMyScores = []; state.bOppScores = [];
+  state.bMyEnds   = []; state.bOppEnds   = [];
+  state.bMyPts    = 0;  state.bOppPts    = 0;
+  state.bOppMatchEnds = null;
+  state.arrows = [];
+  state.arrowTarget = state.rules.arrowsPerEnd;
+  state.phase = 'bronze';
+}
+
+function renderBronze(main) {
+  const rules = state.rules;
+  const isSet = rules.scoring === 'sets';
+  let html = `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+  html += `<div class="round-banner">
+    <div>
+      <div class="round-name" style="color:rgba(180,120,30,0.9)">Bronze Final</div>
+      <div class="round-sub">3rd place match</div>
+    </div>
+    <div class="round-pills">
+      <div class="pill done"></div>
+      <div class="pill done"></div>
+      <div class="pill current" style="background:rgba(180,120,30,0.8)"></div>
+    </div>
+  </div>`;
+  html += isSet ? buildSetBoard() : buildTotalBoard();
+  html += buildArrowZone(false);
+  html += buildHistory();
+  main.innerHTML = html;
+}
+
+function confirmBronzeArrows(arrows, total) {
+  const rules = state.rules;
+  const round = state.data.rounds[state.roundIdx];
+
+  if (rules.scoring === 'sets') {
+    const pool = state.data.sets[round.key];
+    const setNum = state.bMyScores.length + 1;
+    const oppScore = rand(pool[setNum] || pool[1]);
+    state.bMyScores.push({ arrows: [...arrows], total });
+    state.bOppScores.push(oppScore);
+    if (total > oppScore)      { state.bMyPts += 2; }
+    else if (total < oppScore) { state.bOppPts += 2; }
+    else                       { state.bMyPts++; state.bOppPts++; }
+
+    const played = state.bMyScores.length;
+    const left   = rules.numEnds - played;
+    const myP = state.bMyPts, opP = state.bOppPts;
+    const myWon  = myP >= rules.winPts && myP > opP;
+    const oppWon = opP >= rules.winPts && opP > myP;
+    if (myWon || oppWon || played >= rules.numEnds) {
+      if (myP === opP) {
+        state.soOppRaw = rand(pool.so || [8,9,9,10]);
+        state.arrows = [];
+        state.phase = 'shootoff';
+      } else { resolveBronze(); }
+    }
+  } else {
+    if (!state.bOppMatchEnds) {
+      const oppTotal = rand(state.data.scores[round.key]);
+      const ends = decomposeTotal(oppTotal, rules.numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
+      state.bOppMatchEnds = ends.map(t => ({
+        total: t,
+        arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX)
+      }));
+    }
+    const idx = state.bMyEnds.length;
+    state.bMyEnds.push({ arrows: [...arrows], total });
+    state.bOppEnds.push(state.bOppMatchEnds[idx]);
+    if (state.bMyEnds.length >= rules.numEnds) {
+      state.bMyPts = state.bMyEnds.reduce((s, v) => s + v.total, 0);
+      state.bOppPts = state.bOppEnds.reduce((s, v) => s + v.total, 0);
+      resolveBronze();
+    }
+  }
+  render();
+}
+
+function resolveBronze() {
+  const won = state.bMyPts > state.bOppPts ||
+    (state.bMyPts === state.bOppPts && Math.random() < 0.5);
+  saveHistory(won, true);
+  state.inBronze = false;
+  state.phase = 'bronzeResult';
+}
+
+function renderBronzeResult(main) {
+  const won = state.bMyPts >= state.bOppPts;
+  const borderCol = won ? 'rgba(180,120,30,0.7)' : 'var(--border)';
+  const bgCol     = won ? 'rgba(180,120,30,0.07)' : 'var(--panel)';
+  main.innerHTML = `
+    <div class="result-screen" style="border-color:${borderCol};background:${bgCol};">
+      <div class="screen-icon">${won ? '🥉' : '4️⃣'}</div>
+      <div class="screen-title" style="color:${won ? 'rgba(200,150,50,0.95)' : 'var(--muted)'}">
+        ${won ? 'Bronze Medalist' : 'Fourth Place'}
+      </div>
+      <div class="screen-sub">
+        ${won ? `You won the Bronze Medal at ${navEvent.label}.` : 'You finished fourth — just outside the medals.'}
+        <br>Final: You ${state.bMyPts} – ${state.bOppPts} Opponent
+      </div>
+    </div>
+    <button class="next-btn" onclick="restartSame()">Try again →</button>
+    <button class="next-btn" onclick="goHome()">← Choose division</button>
+    ${buildHistory()}`;
+}
+
+// ── MEDAL SCREENS ─────────────────────────────────────────────────────────────
+function renderMedal(type, main) {
+  const cfg = {
+    gold: {
+      icon: '🥇', title: 'Gold Medalist',
+      border: 'var(--border-bright)', bg: 'rgba(201,168,76,0.07)',
+      color: 'var(--gold)',
+      sub: `You claimed Gold at ${navEvent.label}.`
+    },
+    silver: {
+      icon: '🥈', title: 'Silver Medalist',
+      border: 'rgba(180,180,190,0.5)', bg: 'rgba(180,180,190,0.05)',
+      color: '#ccc',
+      sub: `You reached the Final and claimed Silver at ${navEvent.label}.`
+    },
+  };
+  const c = cfg[type];
+  main.innerHTML = `
+    <div class="result-screen" style="border-color:${c.border};background:${c.bg};">
+      <div class="screen-icon">${c.icon}</div>
+      <div class="screen-title" style="color:${c.color}">${c.title}</div>
+      <div class="screen-sub">${c.sub}</div>
+    </div>
+    <button class="next-btn" onclick="restartSame()">Try again →</button>
+    <button class="next-btn" onclick="goHome()">← Choose division</button>
+    ${buildHistory()}`;
+}
+
+// ── ELIMINATED ────────────────────────────────────────────────────────────────
+function renderEliminated(main) {
+  const round = state.data.rounds[state.roundIdx];
+  main.innerHTML = `
+    <div class="result-screen eliminated" style="border-color:rgba(160,82,82,0.35);background:rgba(160,82,82,0.05);">
+      <div class="screen-icon">🏹</div>
+      <div class="screen-title" style="color:var(--muted)">Eliminated</div>
+      <div class="screen-sub">
+        You went out in the <strong style="color:var(--text)">${round.label}</strong>
+        <br>${state.myPts} – ${state.oppPts}
+      </div>
+    </div>
+    <button class="next-btn" onclick="restartSame()">Try again →</button>
+    <button class="next-btn" onclick="goHome()">← Choose division</button>
+    ${buildHistory()}`;
+}
+
+// ── SCOREBOARDS ───────────────────────────────────────────────────────────────
+function buildSetBoard() {
+  const rules  = state.rules;
+  const scores = state.inBronze ? state.bMyScores  : state.myScores;
+  const opp    = state.inBronze ? state.bOppScores : state.oppScores;
+  const myP    = state.inBronze ? state.bMyPts     : state.myPts;
+  const opP    = state.inBronze ? state.bOppPts    : state.oppPts;
+  const maxS   = rules.numEnds;
+  const cols   = `60px repeat(${maxS},1fr) 36px`;
+  const hdr    = Array.from({length: maxS}, (_, i) => `<div style="text-align:center">S${i+1}</div>`).join('');
+
+  let html = `<div class="scoreboard">
+    <div class="score-header" style="grid-template-columns:${cols}">
+      <div></div>${hdr}<div style="text-align:center">Pts</div>
+    </div>
+    <div class="score-row" style="grid-template-columns:${cols}">
+      <div class="player-label">Opp</div>`;
+
+  for (let s = 0; s < maxS; s++) {
+    if (s < opp.length) {
+      const op = opp[s], my = scores[s] ? scores[s].total : -1;
+      const cls = op > my ? 'win' : op < my ? 'loss' : 'draw';
+      html += `<div class="cell filled ${cls}">${op}</div>`;
+    } else if (s === opp.length) {
+      html += `<div class="cell active">—</div>`;
+    } else {
+      html += `<div class="cell">—</div>`;
+    }
+  }
+  html += `<div class="pts-cell">${opP}</div></div>
+    <div class="score-row" style="grid-template-columns:${cols}">
+      <div class="player-label you">You</div>`;
+
+  for (let s = 0; s < maxS; s++) {
+    if (s < scores.length) {
+      const my = scores[s].total, op = opp[s];
+      const cls = my > op ? 'win' : my < op ? 'loss' : 'draw';
+      html += `<div class="cell filled ${cls}">${my}</div>`;
+    } else if (s === scores.length) {
+      html += `<div class="cell active">?</div>`;
+    } else {
+      html += `<div class="cell">—</div>`;
+    }
+  }
+  html += `<div class="pts-cell pts-you">${myP}</div></div></div>`;
+  return html;
+}
+
+function buildTotalBoard() {
+  const rules  = state.rules;
+  const myEnds = state.inBronze ? state.bMyEnds  : state.myEnds;
+  const opEnds = state.inBronze ? state.bOppEnds : state.oppEnds;
+  const maxE   = rules.numEnds;
+  const myTot  = myEnds.reduce((s, v) => s + v.total, 0);
+  const opTot  = opEnds.reduce((s, v) => s + v.total, 0);
+  const cols   = `52px repeat(${maxE},1fr) 44px`;
+  const hdr    = Array.from({length: maxE}, (_, i) => `<div style="text-align:center">E${i+1}</div>`).join('');
+
+  let html = `<div class="scoreboard">
+    <div class="score-header" style="grid-template-columns:${cols}">
+      <div></div>${hdr}<div style="text-align:center">Tot</div>
+    </div>
+    <div class="score-row" style="grid-template-columns:${cols}">
+      <div class="player-label">Opp</div>`;
+
+  for (let e = 0; e < maxE; e++) {
+    if (e < opEnds.length) {
+      const op = opEnds[e].total, my = myEnds[e] ? myEnds[e].total : null;
+      const cls = my !== null ? (op > my ? 'win' : op < my ? 'loss' : 'draw') : 'filled';
+      html += `<div class="cell filled ${cls}">${op}</div>`;
+    } else if (e === opEnds.length) {
+      html += `<div class="cell active">—</div>`;
+    } else {
+      html += `<div class="cell">—</div>`;
+    }
+  }
+  const opTotCls = myEnds.length === maxE ? (opTot > myTot ? 'win' : opTot < myTot ? 'loss' : 'draw') : '';
+  html += `<div class="pts-cell ${opTotCls}">${opTot || '—'}</div></div>
+    <div class="score-row" style="grid-template-columns:${cols}">
+      <div class="player-label you">You</div>`;
+
+  for (let e = 0; e < maxE; e++) {
+    if (e < myEnds.length) {
+      const my = myEnds[e].total, op = opEnds[e] ? opEnds[e].total : null;
+      const cls = op !== null ? (my > op ? 'win' : my < op ? 'loss' : 'draw') : 'filled';
+      html += `<div class="cell filled ${cls}">${my}</div>`;
+    } else if (e === myEnds.length) {
+      html += `<div class="cell active">?</div>`;
+    } else {
+      html += `<div class="cell">—</div>`;
+    }
+  }
+  const myTotCls = myEnds.length === maxE ? (myTot > opTot ? 'win' : myTot < opTot ? 'loss' : 'draw') : '';
+  html += `<div class="pts-cell pts-you ${myTotCls}">${myTot || '—'}</div></div></div>`;
+
+  // Show opponent's last end arrows as a hint
+  if (opEnds.length > 0) {
+    const last = opEnds[opEnds.length - 1];
+    const pips = last.arrows.map(v => {
+      const col = v === 11 || v === 10 ? 'var(--gold)' : v >= 9 ? 'var(--win)' : 'var(--muted)';
+      return `<span style="font-family:'Barlow Condensed',sans-serif;font-weight:600;color:${col};margin:0 3px">${arrowDisplayStr(v)}</span>`;
+    }).join('');
+    html += `<div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px;padding:0 16px;">Opp last end: ${pips}</div>`;
+  }
+  return html;
+}
+
+// ── ARROW INPUT ZONE ──────────────────────────────────────────────────────────
+function buildArrowZone(isSO) {
+  const rules  = state.rules;
+  const arrows = state.arrows || [];
+  const target = isSO ? rules.soArrows : state.arrowTarget;
+  const entered = arrows.length;
+  const allDone = entered >= target;
+
+  // Label
+  let setLabel = '';
+  if (isSO) {
+    setLabel = 'Shoot-off';
+  } else if (rules.scoring === 'sets') {
+    const n = (state.inBronze ? state.bMyScores : state.myScores).length + 1;
+    setLabel = `Set ${n} of ${rules.numEnds}`;
+  } else {
+    const n = (state.inBronze ? state.bMyEnds : state.myEnds).length + 1;
+    setLabel = `End ${n} of ${rules.numEnds}`;
+  }
+
+  const maxVal   = isSO ? rules.soMaxVal   : rules.maxArrowVal;
+  const allowX   = isSO ? rules.allowX     : rules.allowX;
+  const arrowLbl = target === 1
+    ? `Arrow ${entered + 1} of ${target}`
+    : `Archer ${entered + 1} of ${target}`;
+
+  const runningTotal = arrows.reduce((s, v) => s + arrowScore(v), 0);
+
+  // Pip row
+  const pipHtml = Array.from({length: target}, (_, i) => {
+    if (i < entered) {
+      const v = arrows[i];
+      const col = v === 11 ? 'var(--gold)' : v >= 9 ? 'var(--win)' : v >= 7 ? 'var(--text)' : 'var(--muted)';
+      return `<div class="arrow-pip" style="color:${col}">${arrowDisplayStr(v)}</div>`;
+    }
+    if (i === entered) {
+      return `<div class="arrow-pip pending">?</div>`;
+    }
+    return `<div class="arrow-pip"></div>`;
+  }).join('');
+
+  const confirmFn = isSO ? 'confirmSO()' : 'confirmArrows()';
+
+  return `<div class="input-zone" style="${isSO ? 'border-color:rgba(201,168,76,0.6);' : ''}">
+    <div class="set-prompt" style="${isSO ? 'color:var(--gold);' : ''}">${setLabel} · ${arrowLbl}</div>
+    <div class="arrow-pips">${pipHtml}</div>
+    <div class="running-total">${entered > 0 ? `Running total: ${runningTotal}` : ''}</div>
+    ${buildNumpad(maxVal, allowX, allDone, confirmFn)}
+  </div>`;
+}
+
+function buildNumpad(maxVal, allowX, showShoot, confirmFn) {
+  const keys = [];
+  keys.push({ l: 'M', cls: 'miss', fn: 'arrowTap(0)' });
+  for (let i = 1; i <= maxVal; i++) {
+    keys.push({ l: String(i), cls: '', fn: `arrowTap(${i})` });
+  }
+  if (allowX && maxVal >= 10) {
+    keys.push({ l: 'X', cls: 'x-btn', fn: 'arrowTap(11)' });
+  }
+  keys.push({ l: '⌫', cls: 'del', fn: 'arrowUndo()' });
+
+  let h = `<div class="numpad numpad-4col">`;
+  keys.forEach(k => {
+    h += `<button class="np-btn ${k.cls}" onclick="${k.fn}">${k.l}</button>`;
+  });
+  if (showShoot) {
+    h += `<button class="np-btn shoot-btn" onclick="${confirmFn}">SHOOT →</button>`;
+  }
+  return h + '</div>';
+}
+
+function arrowTap(val) {
+  if (!state.arrows) state.arrows = [];
+  const isSO = state.phase === 'shootoff';
+  const rules = state.rules;
+  const target = isSO ? rules.soArrows : state.arrowTarget;
+  if (state.arrows.length >= target) return;
+  state.arrows.push(val);
+  render();
+}
+
+function arrowUndo() {
+  if (state.arrows && state.arrows.length > 0) {
+    state.arrows.pop();
+    render();
+  }
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+function saveHistory(won, isBronze) {
+  const round = isBronze
+    ? { label: 'Bronze Final' }
+    : state.data.rounds[state.roundIdx];
+  const myS = isBronze ? state.bMyScores : state.myScores;
+  const opS = isBronze ? state.bOppScores : state.oppScores;
+  const myE = isBronze ? state.bMyEnds   : state.myEnds;
+  const opE = isBronze ? state.bOppEnds  : state.oppEnds;
+  const myP = isBronze ? state.bMyPts    : state.myPts;
+  const opP = isBronze ? state.bOppPts   : state.oppPts;
+
+  state.history.push({
+    label: round.label,
+    won, isBronze,
+    myPts: myP, oppPts: opP,
+    myScores:  [...myS],
+    oppScores: [...opS],
+    myEnds:    [...myE],
+    oppEnds:   [...opE],
+  });
+}
+
+function buildHistory() {
+  if (!state || !state.history.length) return '';
+  const rules = state.rules;
+
+  let html = `<div class="history"><div class="history-title">Match History</div>`;
+  state.history.forEach(r => {
+    const medalCol = r.won ? 'var(--win)' : 'var(--loss)';
+    const bronze   = r.isBronze ? '🥉 ' : '';
+    html += `<div class="history-match">
+      <div class="history-match-label">${bronze}${r.label}</div>`;
+
+    if (r.myScores && r.myScores.length > 0) {
+      // Set-point history
+      let myP = 0, opP = 0;
+      r.myScores.forEach((s, i) => {
+        const op = r.oppScores[i];
+        if (s.total > op)      myP += 2;
+        else if (s.total < op) opP += 2;
+        else                   { myP++; opP++; }
+        const setCol = s.total > op ? 'var(--win)' : s.total < op ? 'var(--loss)' : 'var(--draw)';
+        const ptsCol = myP > opP ? 'var(--win)' : myP < opP ? 'var(--loss)' : 'var(--draw)';
+        const arrs = s.arrows.map(v => `<span style="color:var(--text);font-weight:500">${arrowDisplayStr(v)}</span>`).join('<span style="color:var(--panel3);margin:0 2px">·</span>');
+        html += `<div class="history-row">
+          ${arrs}
+          <span style="color:${setCol};font-weight:700;margin-left:6px">${s.total}</span>
+          <span style="color:${ptsCol};font-weight:600;margin:0 8px">${myP}–${opP}</span>
+          <span style="color:var(--muted)">${op}</span>
+        </div>`;
+      });
+    } else if (r.myEnds && r.myEnds.length > 0) {
+      // Total-score history
+      let myRun = 0, opRun = 0;
+      r.myEnds.forEach((e, i) => {
+        const op = r.oppEnds[i];
+        myRun += e.total;
+        if (op) opRun += op.total;
+        const endCol = op ? (e.total > op.total ? 'var(--win)' : e.total < op.total ? 'var(--loss)' : 'var(--draw)') : 'var(--text)';
+        const totCol = myRun > opRun ? 'var(--win)' : myRun < opRun ? 'var(--loss)' : 'var(--draw)';
+        const arrs = e.arrows.map(v => `<span style="color:var(--text);font-weight:500">${arrowDisplayStr(v)}</span>`).join('<span style="color:var(--panel3);margin:0 2px">·</span>');
+        html += `<div class="history-row">
+          ${arrs}
+          <span style="color:${endCol};font-weight:700;margin-left:6px">${e.total}</span>
+          <span style="color:${totCol};font-weight:600;margin:0 8px">${myRun}–${opRun}</span>
+          <span style="color:var(--muted)">${op ? op.total : '—'}</span>
+        </div>`;
+      });
+    }
+
+    html += `<div class="history-result" style="color:${medalCol}">${r.won ? 'W' : 'L'} · ${r.myPts}–${r.oppPts}</div>
+    </div>`;
+  });
+  return html + '</div>';
+}
+
+// ── SHARED UI HELPERS ─────────────────────────────────────────────────────────
+function backBtn() {
+  return `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+}
+
+function roundBanner(round, idx, total) {
+  let pills = '';
+  for (let i = 0; i < total; i++) {
+    if (i < idx)      pills += `<div class="pill done"></div>`;
+    else if (i === idx) pills += `<div class="pill current"></div>`;
+    else              pills += `<div class="pill"></div>`;
+  }
+  return `<div class="round-banner">
+    <div>
+      <div class="round-name">${round.label}</div>
+      <div class="round-sub">${round.sub || ''}</div>
+    </div>
+    <div class="round-pills">${pills}</div>
+  </div>`;
+}
+
+// ── NAVIGATION HELPERS ────────────────────────────────────────────────────────
+function goHome() {
+  state = null;
+  navDiv = null;
+  navBowType = null;
+  navCategory = null;
+  navEvent = null;
+  eventAvailability = {};
+  render();
+}
+
+function restartSame() {
+  const div = state ? state.div : navDiv;
+  const ev  = navEvent;
+  state = null;
+  navDiv = div;
+  navEvent = ev;
+  if (!navBowType) {
+    if (div && div.startsWith('compound')) navBowType = 'compound';
+    else if (div && div.startsWith('barebow')) navBowType = 'barebow';
+    else navBowType = 'recurve';
+  }
+  startTournament();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', render);
