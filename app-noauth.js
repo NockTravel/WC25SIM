@@ -117,11 +117,16 @@ function getRules(d) {
   // Shoot-off
   let soArrows, soMaxVal;
   if (isCompound) {
-    // compound team SO = 2 arrows total (one per archer for mixed, two for team)
-    soArrows = isMixed ? 1 : (isTeam ? 2 : 1);
+    // individual: 1 arrow SO
+    // mixed team: 2 arrows (1 per archer)
+    // full team: 2 arrows (1 per archer)
+    soArrows = isMixed ? 2 : (isTeam ? 3 : 1);
     soMaxVal = 10;
   } else {
-    soArrows = 1;
+    // recurve/barebow individual: 1 arrow
+    // recurve mixed team: 2 arrows (1 per archer)
+    // recurve full team: 3 arrows (1 per archer)
+    soArrows = isMixed ? 2 : (isTeam ? 3 : 1);
     soMaxVal = 10;
   }
 
