@@ -1132,25 +1132,6 @@ function renderBronzeResult(main) {
     <button class="next-btn" style="margin-top:8px;" onclick="goHome()">← Choose division</button>
     ${buildHistory()}`;
 }
-  const cls = won ? 'champion' : 'eliminated';
-  const borderCol = won ? 'rgba(180,120,30,0.7)' : 'var(--border)';
-  const bgCol = won ? 'rgba(180,120,30,0.07)' : 'var(--panel)';
-  const eventLabel = navEvent ? navEvent.label : 'the tournament';
-  main.innerHTML = `
-    <div class="result-screen ${cls}" style="border-color:${borderCol};background:${bgCol};">
-      <div class="screen-icon">${won ? '🥉' : '4️⃣'}</div>
-      <div class="screen-title" style="color:${won?'rgba(200,150,50,0.95)':'var(--muted)'}">
-        ${won ? 'Bronze Medalist' : 'Fourth Place'}
-      </div>
-      <div class="screen-sub">
-        ${won ? `You won the Bronze Medal at ${eventLabel}.` : 'You finished fourth — just outside the medals.'}
-        <br>Final: You ${state.bMyPts} – ${state.bOppPts} Opponent
-      </div>
-      <button class="next-btn" onclick="restartSame()">Try again →</button>
-    </div>
-    <button class="next-btn" style="margin-top:8px;" onclick="goHome()">← Choose division</button>
-    ${buildHistory()}`;
-}
 
 // ─── MEDAL SCREENS ────────────────────────────────────────────────────────────
 function renderMedal(type, main) {
