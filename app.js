@@ -394,10 +394,10 @@ function preflightEvents(bowType, callback) {
   allEvents.forEach(({ ev, catKey }) => {
     const isField = catKey === 'field';
 
-    // Build list of all division keys for this bow type that this event lists
+    // Build list of candidates — check manifest with plain key, fetch with field-translated key
     const candidates = sentinels
-      .map(s => isField ? toFieldKey(s) : s)
-      .filter(key => ev.divisions && ev.divisions.includes(key));
+      .filter(s => ev.divisions && ev.divisions.includes(s))
+      .map(s => isField ? toFieldKey(s) : s);
 
     if (candidates.length === 0) {
       // Event has no divisions for this bow type
