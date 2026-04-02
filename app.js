@@ -1077,9 +1077,8 @@ function confirmSO() {
     if (myRaw > oppRaw)      { won = true; }
     else if (myRaw < oppRaw) { won = false; }
     else                     { won = Math.random() < 0.5; }
-    state.lancasterSOWon = won;
-    // Bump pts by 1 just enough for the reveal screen won/lost check
-    if (won) state.myPts++; else state.oppPts++;
+    state.lancasterSOWon = won;  // used by renderSOReveal and soNext
+    // Do NOT touch myPts — match total must stay as-is for qualifying accumulation
     state.arrows = [];
     state.phase = 'soReveal';
     render(); return;
@@ -1135,7 +1134,8 @@ function renderSOReveal(main) {
   // Read points from the correct bucket (bronze vs normal match)
   const myP  = state.inBronze ? state.bMyPts  : state.myPts;
   const opP  = state.inBronze ? state.bOppPts : state.oppPts;
-  const won  = myP > opP;
+  // For Lancaster, won/lost was determined by SO arrow comparison, not pts
+  const won  = state.isLancaster ? state.lancasterSOWon : (myP > opP);
 
   let soHtml = '';
   if (rules.soArrows === 1) {
