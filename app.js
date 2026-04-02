@@ -1702,9 +1702,10 @@ function buildArrowZone(isSO) {
     ? (state.isLancaster ? (state.lancasterInLadder ? 12 : 11) : rules.soMaxVal)
     : (state.isLancaster ? lancasterMaxArrow() : rules.maxArrowVal);
   const allowX   = rules.allowX;
-  const arrowLbl = target === 1
-    ? `Arrow ${entered + 1} of ${target}`
-    : `Archer ${entered + 1} of ${target}`;
+  const isTeam = state.rules.arrowsPerEnd > 3;
+  const arrowLbl = entered >= target
+    ? `${isTeam ? 'Archer' : 'Arrow'} ${target} of ${target}`
+    : `${isTeam ? 'Archer' : 'Arrow'} ${entered + 1} of ${target}`;
 
   const runningTotal = arrows.reduce((s, v) => s + arrowScore(v), 0);
 
