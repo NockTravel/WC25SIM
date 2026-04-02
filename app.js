@@ -298,6 +298,9 @@ function arrowDisplayStr(v) {
 }
 
 function arrowScore(v) {
+  // In Lancaster format, 11 is the actual face value (not X scoring as 10).
+  // In all other formats, 11 is X which scores as 10.
+  if (v === 11 && state && state.isLancaster) return 11;
   if (v === 11) return 10;   // X counts as 10
   return v;
 }
