@@ -296,6 +296,11 @@ const LADDER_KEYS = ['l8','l7','l6','l5','l4','l3','l2'];
 // Round definitions can override rules.numEnds via round.numEnds.
 function currentNumEnds() {
   const rules = state.rules;
+  // Bronze final should use the same numEnds as the actual final round
+  if (state.inBronze) {
+    const finalRound = state.data.rounds[state.data.rounds.length - 1];
+    return (finalRound && finalRound.numEnds) ? finalRound.numEnds : rules.numEnds;
+  }
   const round = state.data.rounds[state.roundIdx];
   return (round && round.numEnds) ? round.numEnds : rules.numEnds;
 }
