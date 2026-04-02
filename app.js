@@ -132,13 +132,34 @@ function getRules(divisionKey) {
   return DIVISION_RULES.recurve_individual;
 }
 
-// ── BOW TYPE → SENTINEL DIVISION KEYS ────────────────────────────────────────
-// Used for preflight checks — one sentinel per bow type, no field_ prefix needed
-// because the preflight applies the field translation automatically.
+// ── BOW TYPE → DIVISION KEYS TO CHECK ────────────────────────────────────────
+// All division keys relevant to each bow type, used by the preflight check.
+// An event is marked available if ANY of these files exists in that event folder.
 const BOW_SENTINELS = {
-  recurve:  ['recurve_women',  'recurve_men'],
-  compound: ['compound_women', 'compound_men'],
-  barebow:  ['barebow_women',  'barebow_men'],
+  recurve:  [
+    'recurve_women', 'recurve_men',
+    'recurve_mixed_team', 'recurve_women_team', 'recurve_men_team',
+    'recurve_u21_women', 'recurve_u21_men', 'recurve_u21_mixed_team',
+    'recurve_u18_women', 'recurve_u18_men',
+    'recurve_u15_women', 'recurve_u15_men',
+    'recurve_u13_women', 'recurve_u13_men',
+    'recurve_50plus_women', 'recurve_50plus_men',
+  ],
+  compound: [
+    'compound_women', 'compound_men',
+    'compound_mixed_team', 'compound_women_team', 'compound_men_team',
+    'compound_u21_women', 'compound_u21_men', 'compound_u21_mixed_team',
+    'compound_u18_women', 'compound_u18_men',
+    'compound_50plus_women', 'compound_50plus_men',
+  ],
+  barebow: [
+    'barebow_women', 'barebow_men',
+    'barebow_mixed_team', 'barebow_women_team', 'barebow_men_team',
+    'barebow_u21_women', 'barebow_u21_men', 'barebow_u21_mixed_team',
+    'barebow_u18_women', 'barebow_u18_men',
+    'mixed_bow_team_women', 'mixed_bow_team_men',
+    'mixed_bow_team_u21_women', 'mixed_bow_team_u21_men',
+  ],
 };
 
 // ── FIELD DIVISION KEY TRANSLATION ───────────────────────────────────────────
@@ -283,8 +304,9 @@ function decomposeEnd(endTotal, numArrows, maxArrowVal, allowX) {
 }
 
 // ── PREFLIGHT: CHECK FILE AVAILABILITY ───────────────────────────────────────
-// For each event, HEAD-request the sentinel division file for the selected bow type.
-// Marks events as available or not before the user reaches the event picker.
+// For each event, checks all division files relevant to the selected bow type.
+// Marks the event available as soon as any one file responds 200.
+// This means events become visible incrementally as data files are added.
 function preflightEvents(bowType, callback) {
   const m = window.EVENT_MANIFEST;
   if (!m) { callback(); return; }
@@ -301,28 +323,40 @@ function preflightEvents(bowType, callback) {
   allEvents.forEach(({ ev, catKey }) => {
     const isField = catKey === 'field';
 
-    // Find first sentinel that this event lists — applying field translation if needed
-    const sentinel = sentinels.find(s => {
-      const key = isField ? toFieldKey(s) : s;
-      return ev.divisions && ev.divisions.includes(key);
-    });
+    // Build list of all division keys for this bow type that this event lists
+    const candidates = sentinels
+      .map(s => isField ? toFieldKey(s) : s)
+      .filter(key => ev.divisions && ev.divisions.includes(key));
 
-    if (!sentinel) {
+    if (candidates.length === 0) {
+      // Event has no divisions for this bow type
       eventAvailability[ev.id] = false;
       remaining--;
       if (remaining === 0) callback();
       return;
     }
 
-    const fileKey = isField ? toFieldKey(sentinel) : sentinel;
-    const url = `${ev.folder}/${fileKey}.js`;
-    fetch(url, { method: 'HEAD' })
-      .then(r => { eventAvailability[ev.id] = r.ok; })
-      .catch(() => { eventAvailability[ev.id] = false; })
-      .finally(() => {
+    // Try each candidate in sequence — mark available on first 200, unavailable if all fail
+    function tryNext(i) {
+      if (i >= candidates.length) {
+        eventAvailability[ev.id] = false;
         remaining--;
         if (remaining === 0) callback();
-      });
+        return;
+      }
+      fetch(`${ev.folder}/${candidates[i]}.js`, { method: 'HEAD' })
+        .then(r => {
+          if (r.ok) {
+            eventAvailability[ev.id] = true;
+            remaining--;
+            if (remaining === 0) callback();
+          } else {
+            tryNext(i + 1);
+          }
+        })
+        .catch(() => tryNext(i + 1));
+    }
+    tryNext(0);
   });
 }
 
