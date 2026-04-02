@@ -136,6 +136,14 @@ window.EVENT_MANIFEST = {
           'compound_u21_women', 'compound_u21_men',
           'barebow_women', 'barebow_men'
         ]
+      },
+      {
+        id: '2026-lancaster',
+        label: 'Lancaster Archery Classic 2026',
+        sub: 'Lancaster, PA · Jan 2026',
+        folder: 'data/events/indoor/2026-lancaster',
+        divisions: ['compound_men'],
+        format: 'lancaster',
       }
     ]
   }
