@@ -262,15 +262,32 @@ function getLancasterSeed(totalScore, totalElevens) {
   return 8;
 }
 
-// Returns the ladder round key for a given seed position
-// Seed 8 starts at l8 (vs seed 7), seed 1 never plays in ladder (they wait)
+// Ladder structure (step-up format):
+// l8: #8 v #7  → winner climbs
+// l7: winner v #6
+// l6: winner v #5
+// l5: winner v #4
+// l4: winner v #3
+// l3: winner v #2
+// l2: winner v #1  (championship match)
+//
+// Player's entry point depends on seed:
+//   Seed 8 → starts at l8 (plays #7)
+//   Seed 7 → starts at l8 (plays #8)
+//   Seed 6 → waits at l7 (plays winner of l8)
+//   Seed 5 → waits at l6
+//   Seed 4 → waits at l5
+//   Seed 3 → waits at l4
+//   Seed 2 → waits at l3
+//   Seed 1 → waits at l2 (championship match)
+
 function ladderStartKey(seed) {
-  const map = { 8:'l8', 7:'l7', 6:'l6', 5:'l5', 4:'l4', 3:'l3', 2:'l2' };
+  const map = { 1:'l2', 2:'l3', 3:'l4', 4:'l5', 5:'l6', 6:'l7', 7:'l8', 8:'l8' };
   return map[seed] || 'l8';
 }
 
-// All ladder round keys in order
-const LADDER_KEYS = ['l8','l7','l6','l5','l4','l3','l2','l1'];
+// All ladder round keys in order (climber's path from bottom to top)
+const LADDER_KEYS = ['l8','l7','l6','l5','l4','l3','l2'];
 
 // ── NAVIGATION STATE ──────────────────────────────────────────────────────────
 let navBowType  = null;   // 'recurve' | 'compound' | 'barebow'
@@ -963,8 +980,8 @@ function resolveLancasterMatch(inLadder) {
   }
 
   if (inLadder) {
-    // Check if we just beat seed #1 (final ladder match)
-    if (currentRound.key === 'l1') {
+    // Check if we just won the championship match
+    if (currentRound.key === 'l2') {
       state.phase = 'gold';
       return;
     }
@@ -1169,8 +1186,8 @@ function renderSOReveal(main) {
       nextLabel = 'View your run →'; nextFn = `soNext(false,false)`;
     } else if (!inLadder && state.roundIdx === 2) {
       nextLabel = 'See your seeding →'; nextFn = `soNext(true,false)`;
-    } else if (inLadder && round.key === 'l1') {
-      nextLabel = 'Collect your title →'; nextFn = `soNext(true,true)`;
+    } else if (inLadder && round.key === 'l2') {
+      nextLabel = 'Claim the title →'; nextFn = `soNext(true,true)`;
     } else {
       nextLabel = won ? `Advance to next rung →` : 'View your run →';
       nextFn = `soNext(${won},false)`;
@@ -1232,11 +1249,7 @@ function soNext(won, isFinal) {
     }
 
     if (!inLadder) {
-      // Qualifying SO win — accumulate totals then check if r3 done
-      const matchElevens = state.myEnds.reduce((s, e) => s + e.arrows.filter(a => a === 11).length, 0);
-      state.lancasterQualTotal   += state.myPts;
-      state.lancasterQualElevens += matchElevens;
-
+      // Qualifying SO win — resolveLancasterMatch already accumulated totals
       const r3Idx = 2;
       if (state.roundIdx === r3Idx) {
         state.lancasterSeed = getLancasterSeed(state.lancasterQualTotal, state.lancasterQualElevens);
@@ -1247,16 +1260,20 @@ function soNext(won, isFinal) {
         state.phase = 'playing';
       }
     } else {
-      // Ladder SO win — advance to next rung
+      // Ladder SO win — advance to next rung or claim title
       const currentKey = round.key;
-      const currentLadderIdx = LADDER_KEYS.indexOf(currentKey);
-      const nextKey = LADDER_KEYS[currentLadderIdx + 1];
-      if (!nextKey) {
+      if (currentKey === 'l2') {
         state.phase = 'gold';
       } else {
-        const nextRoundIdx = d.rounds.findIndex(r => r.key === nextKey);
-        advanceLancasterToRound(nextRoundIdx);
-        state.phase = 'playing';
+        const currentLadderIdx = LADDER_KEYS.indexOf(currentKey);
+        const nextKey = LADDER_KEYS[currentLadderIdx + 1];
+        if (!nextKey) {
+          state.phase = 'gold';
+        } else {
+          const nextRoundIdx = d.rounds.findIndex(r => r.key === nextKey);
+          advanceLancasterToRound(nextRoundIdx);
+          state.phase = 'playing';
+        }
       }
     }
     render(); return;
@@ -1292,7 +1309,7 @@ function renderMatchResult(main) {
       nextLabel = 'View your run →'; nextFn = `matchNext(false)`;
     } else if (!inLadder && state.roundIdx === 2) {
       nextLabel = 'See your seeding →'; nextFn = `matchNext(true)`;
-    } else if (inLadder && round.key === 'l1') {
+    } else if (inLadder && round.key === 'l2') {
       nextLabel = 'Claim the title →'; nextFn = `matchNext(true)`;
     } else {
       nextLabel = `Advance to next rung →`; nextFn = `matchNext(true)`;
@@ -1323,12 +1340,14 @@ function matchNext(won) {
   // Lancaster ladder advancement
   if (state.isLancaster && state.lancasterInLadder) {
     if (!won) { state.phase = 'eliminated'; render(); return; }
+    // l2 is the championship match — winning it means gold
+    const currentKey = state.data.rounds[state.roundIdx].key;
+    if (currentKey === 'l2') { state.phase = 'gold'; render(); return; }
     // Find next ladder rung
-    const currentKey = d.rounds[state.roundIdx].key;
     const currentLadderIdx = LADDER_KEYS.indexOf(currentKey);
     const nextKey = LADDER_KEYS[currentLadderIdx + 1];
     if (!nextKey) { state.phase = 'gold'; render(); return; }
-    const nextRoundIdx = d.rounds.findIndex(r => r.key === nextKey);
+    const nextRoundIdx = state.data.rounds.findIndex(r => r.key === nextKey);
     if (nextRoundIdx === -1) { state.phase = 'gold'; render(); return; }
     advanceLancasterToRound(nextRoundIdx);
     state.phase = 'playing'; render(); return;
@@ -1346,12 +1365,7 @@ function matchNext(won) {
 
 // ── ADVANCE ROUND ─────────────────────────────────────────────────────────────
 function advanceRound() {
-  // For Lancaster qualifying rounds, accumulate score before resetting
-  if (state.isLancaster && !state.lancasterInLadder) {
-    const matchElevens = state.myEnds.reduce((s, e) => s + e.arrows.filter(a => a === 11).length, 0);
-    state.lancasterQualTotal   += state.myPts;
-    state.lancasterQualElevens += matchElevens;
-  }
+  // Lancaster qualifying accumulation is handled by resolveLancasterMatch only — not here
   state.roundIdx++;
   state.myScores = []; state.oppScores = [];
   state.myEnds   = []; state.oppEnds   = [];
