@@ -289,6 +289,15 @@ function ladderStartKey(seed) {
 // All ladder round keys in order (climber's path from bottom to top)
 const LADDER_KEYS = ['l8','l7','l6','l5','l4','l3','l2'];
 
+// ── FIELD ROUND-VARIABLE END COUNT ───────────────────────────────────────────
+// Field archery uses 6 ends in early rounds, 4 in semis/final.
+// Round definitions can override rules.numEnds via round.numEnds.
+function currentNumEnds() {
+  const rules = state.rules;
+  const round = state.data.rounds[state.roundIdx];
+  return (round && round.numEnds) ? round.numEnds : rules.numEnds;
+}
+
 // ── NAVIGATION STATE ──────────────────────────────────────────────────────────
 let navBowType  = null;   // 'recurve' | 'compound' | 'barebow'
 let navCategory = null;   // 'outdoor' | 'field' | 'indoor'
@@ -743,7 +752,8 @@ function submitSet(arrows, total, round) {
 }
 
 function checkSetMatchEnd(rules, pool) {
-  const { numEnds, winPts } = rules;
+  const numEnds = currentNumEnds();
+  const { winPts } = rules;
   const played = state.myScores.length;
   const left = numEnds - played;
   const myP = state.myPts, opP = state.oppPts;
@@ -775,11 +785,10 @@ function submitEnd(arrows, total, round) {
   state.myEnds.push({ arrows: [...arrows], total });
   state.oppEnds.push(state.oppMatchEnds[endIdx]);
 
-  if (state.myEnds.length >= rules.numEnds) {
+  if (state.myEnds.length >= currentNumEnds()) {
     state.myPts = state.myEnds.reduce((s, v) => s + v.total, 0);
     state.oppPts = state.oppEnds.reduce((s, v) => s + v.total, 0);
     if (state.myPts === state.oppPts) {
-      // Draw oppSO from data
       const soPool = state.data.so;
       if (soPool && Array.isArray(soPool[0])) {
         state.soOppArrows = rand(soPool);
@@ -795,8 +804,9 @@ function submitEnd(arrows, total, round) {
 }
 
 function drawOppEnds(rules, roundKey) {
+  const numEnds = currentNumEnds();
   const oppTotal = rand(state.data.scores[roundKey]);
-  const endTotals = decomposeTotal(oppTotal, rules.numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
+  const endTotals = decomposeTotal(oppTotal, numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
   state.oppMatchEnds = endTotals.map(t => ({
     total: t,
     arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX)
@@ -1560,7 +1570,7 @@ function buildSetBoard() {
   const opp    = state.inBronze ? state.bOppScores : state.oppScores;
   const myP    = state.inBronze ? state.bMyPts     : state.myPts;
   const opP    = state.inBronze ? state.bOppPts    : state.oppPts;
-  const maxS   = rules.numEnds;
+  const maxS   = state.inBronze ? rules.numEnds : currentNumEnds();
   const cols   = `60px repeat(${maxS},1fr) 36px`;
   const hdr    = Array.from({length: maxS}, (_, i) => `<div style="text-align:center">S${i+1}</div>`).join('');
 
@@ -1605,7 +1615,7 @@ function buildTotalBoard() {
   const rules  = state.rules;
   const myEnds = state.inBronze ? state.bMyEnds  : state.myEnds;
   const opEnds = state.inBronze ? state.bOppEnds : state.oppEnds;
-  const maxE   = rules.numEnds;
+  const maxE   = state.inBronze ? rules.numEnds : currentNumEnds();
   const myTot  = myEnds.reduce((s, v) => s + v.total, 0);
   const opTot  = opEnds.reduce((s, v) => s + v.total, 0);
   const cols   = `52px repeat(${maxE},1fr) 44px`;
@@ -1674,10 +1684,10 @@ function buildArrowZone(isSO) {
     setLabel = 'Shoot-off';
   } else if (rules.scoring === 'sets') {
     const n = (state.inBronze ? state.bMyScores : state.myScores).length + 1;
-    setLabel = `Set ${n} of ${rules.numEnds}`;
+    setLabel = `Set ${n} of ${currentNumEnds()}`;
   } else {
     const n = (state.inBronze ? state.bMyEnds : state.myEnds).length + 1;
-    setLabel = `End ${n} of ${rules.numEnds}`;
+    setLabel = `End ${n} of ${currentNumEnds()}`;
   }
 
   const maxVal   = isSO
