@@ -949,14 +949,20 @@ function drawLancasterOppEnds(roundKey, inLadder, maxArrow) {
   }));
 }
 
+function accumulateLancasterQual() {
+  // Called exactly once per qualifying match win, after myPts is finalised
+  // For SO matches, myPts has been bumped by 1 — we use the real end total instead
+  const realTotal = state.myEnds.reduce((s, e) => s + e.total, 0);
+  const matchElevens = state.myEnds.reduce((s, e) => s + e.arrows.filter(a => a === 11).length, 0);
+  state.lancasterQualTotal   += realTotal;
+  state.lancasterQualElevens += matchElevens;
+}
+
 function resolveLancasterMatch(inLadder) {
   const won = state.myPts > state.oppPts;
 
-  if (!inLadder) {
-    // Qualifying round — accumulate totals and 11 counts
-    const matchElevens = state.myEnds.reduce((s, e) => s + e.arrows.filter(a => a === 11).length, 0);
-    state.lancasterQualTotal   += state.myPts;
-    state.lancasterQualElevens += matchElevens;
+  if (!inLadder && won) {
+    accumulateLancasterQual();
   }
 
   saveHistory(won, false);
@@ -966,13 +972,11 @@ function resolveLancasterMatch(inLadder) {
     return;
   }
 
-  // Check if we just finished r3 (last qualifying round)
   const d = state.data;
   const currentRound = d.rounds[state.roundIdx];
-  const r3Idx = 2; // rounds 0,1,2 are r1,r2,r3
+  const r3Idx = 2;
 
   if (!inLadder && state.roundIdx === r3Idx) {
-    // Seed the player and enter ladder
     state.lancasterSeed = getLancasterSeed(state.lancasterQualTotal, state.lancasterQualElevens);
     state.lancasterInLadder = true;
     state.phase = 'lancasterSeeded';
@@ -980,17 +984,14 @@ function resolveLancasterMatch(inLadder) {
   }
 
   if (inLadder) {
-    // Check if we just won the championship match
     if (currentRound.key === 'l2') {
       state.phase = 'gold';
       return;
     }
-    // Advance to next ladder rung
     state.phase = 'matchResult';
     return;
   }
 
-  // Normal qualifying advance
   state.phase = 'matchResult';
 }
 
@@ -1066,6 +1067,24 @@ function confirmSO() {
 
   if (arrows.length < rules.soArrows) return;
 
+  // Lancaster SO: just determine won/lost, don't touch myPts/oppPts
+  // (those are the match totals and must not be modified)
+  if (state.isLancaster) {
+    const myRaw  = arrows[0];
+    state.soMyRaw = myRaw;
+    const oppRaw = state.soOppRaw;
+    let won;
+    if (myRaw > oppRaw)      { won = true; }
+    else if (myRaw < oppRaw) { won = false; }
+    else                     { won = Math.random() < 0.5; }
+    state.lancasterSOWon = won;
+    // Bump pts by 1 just enough for the reveal screen won/lost check
+    if (won) state.myPts++; else state.oppPts++;
+    state.arrows = [];
+    state.phase = 'soReveal';
+    render(); return;
+  }
+
   // Points land in bronze buckets if we're in the bronze final
   const myPtsKey  = state.inBronze ? 'bMyPts'  : 'myPts';
   const oppPtsKey = state.inBronze ? 'bOppPts' : 'oppPts';
@@ -1078,7 +1097,6 @@ function confirmSO() {
     if (myHasX && !oppHasX)  { state[myPtsKey]++; }
     else if (!myHasX && oppHasX) { state[oppPtsKey]++; }
     else {
-      // Both have X or neither does — 50/50
       if (Math.random() < 0.5) state[myPtsKey]++; else state[oppPtsKey]++;
     }
   }
@@ -1088,7 +1106,7 @@ function confirmSO() {
     state.soMyRaw = myRaw;
     const oppRaw = state.soOppRaw;
     const myScore  = arrowScore(myRaw);
-    const oppScore = oppRaw; // opponent SO values are already numeric (never 11)
+    const oppScore = oppRaw;
     if (myScore > oppScore)      { state[myPtsKey]++; }
     else if (myScore < oppScore) { state[oppPtsKey]++; }
     else { resolveSOTie([myRaw], [oppRaw]); }
@@ -1098,6 +1116,18 @@ function confirmSO() {
     const oppArrows = state.soOppArrows ||
       Array.from({ length: rules.soArrows }, () => rand([8,9,9,10,10,10]));
     state.soOppArrows = oppArrows;
+    const myTotal  = arrows.reduce((s, v) => s + arrowScore(v), 0);
+    const oppTotal = oppArrows.reduce((s, v) => s + arrowScore(v), 0);
+
+    if (myTotal > oppTotal)      { state[myPtsKey]++; }
+    else if (myTotal < oppTotal) { state[oppPtsKey]++; }
+    else { resolveSOTie(arrows, oppArrows); }
+  }
+
+  state.arrows = [];
+  state.phase = 'soReveal';
+  render();
+}
     const myTotal  = arrows.reduce((s, v) => s + arrowScore(v), 0);
     const oppTotal = oppArrows.reduce((s, v) => s + arrowScore(v), 0);
 
@@ -1249,15 +1279,18 @@ function soNext(won, isFinal) {
     }
 
     if (!inLadder) {
-      // Qualifying SO win — resolveLancasterMatch already accumulated totals
+      // Qualifying SO win — accumulate real end totals (not the bumped myPts)
+      if (won) accumulateLancasterQual();
       const r3Idx = 2;
-      if (state.roundIdx === r3Idx) {
+      if (won && state.roundIdx === r3Idx) {
         state.lancasterSeed = getLancasterSeed(state.lancasterQualTotal, state.lancasterQualElevens);
         state.lancasterInLadder = true;
         state.phase = 'lancasterSeeded';
-      } else {
+      } else if (won) {
         advanceRound();
         state.phase = 'playing';
+      } else {
+        state.phase = 'eliminated';
       }
     } else {
       // Ladder SO win — advance to next rung or claim title
