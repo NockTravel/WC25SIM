@@ -798,9 +798,14 @@ function submitEnd(arrows, total, round) {
     state.oppPts = state.oppEnds.reduce((s, v) => s + v.total, 0);
     if (state.myPts === state.oppPts) {
       const soPool = state.data.so;
-      if (soPool && Array.isArray(soPool[0])) {
+      if (rules.soArrows === 1) {
+        // Individual SO — set soOppRaw from a flat pool
+        state.soOppRaw = rand(soPool && !Array.isArray(soPool[0]) ? soPool : [Math.round(rules.soMaxVal * 0.8), rules.soMaxVal - 1, rules.soMaxVal - 1, rules.soMaxVal]);
+      } else if (soPool && Array.isArray(soPool[0])) {
+        // Multi-arrow team SO — draw a pair/triple from pool of arrays
         state.soOppArrows = rand(soPool);
       } else {
+        // Multi-arrow fallback
         const maxV = rules.soMaxVal || 10;
         const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2, maxV-1, maxV-1, maxV, maxV];
         state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand(fallbackPool));
