@@ -147,7 +147,7 @@ function getRules(divisionKey) {
 // All division keys relevant to each bow type, used by the preflight check.
 // An event is marked available if ANY of these files exists in that event folder.
 const BOW_SENTINELS = {
-  recurve:  [
+  recurve:   [
     'recurve_women', 'recurve_men',
     'recurve_mixed_team', 'recurve_women_team', 'recurve_men_team',
     'recurve_u21_women', 'recurve_u21_men', 'recurve_u21_mixed_team',
@@ -168,6 +168,8 @@ const BOW_SENTINELS = {
     'barebow_mixed_team', 'barebow_women_team', 'barebow_men_team',
     'barebow_u21_women', 'barebow_u21_men', 'barebow_u21_mixed_team',
     'barebow_u18_women', 'barebow_u18_men',
+  ],
+  mixed_bow: [
     'mixed_bow_team_women', 'mixed_bow_team_men',
     'mixed_bow_team_u21_women', 'mixed_bow_team_u21_men',
   ],
@@ -178,7 +180,6 @@ const BOW_SENTINELS = {
 // is translated to the field-prefixed file key (e.g. 'field_recurve_women').
 // This keeps the division picker clean while the file naming stays unambiguous.
 function toFieldKey(divKey) {
-  // Mixed bow team is already field-only, prefix just needs field_ guard
   if (divKey.startsWith('field_')) return divKey;
   return 'field_' + divKey;
 }
@@ -234,11 +235,12 @@ const DIVISION_CATALOGUE = {
     { id: 'barebow_women_team',         name: 'Women Team',        sub: '3 archer · Set points' },
     { id: 'barebow_men_team',           name: 'Men Team',          sub: '3 archer · Set points' },
     { id: 'barebow_u21_mixed_team',     name: 'U21 Mixed Team',    sub: '1M+1W · Set points' },
-    // Mixed bow team — field archery only, listed under barebow as home bow type
-    { id: 'mixed_bow_team_women',       name: 'Mixed Bow Women',   sub: 'Field · R+C+B' },
-    { id: 'mixed_bow_team_men',         name: 'Mixed Bow Men',     sub: 'Field · R+C+B' },
-    { id: 'mixed_bow_team_u21_women',   name: 'Mixed Bow U21 W',   sub: 'Field · R+C+B' },
-    { id: 'mixed_bow_team_u21_men',     name: 'Mixed Bow U21 M',   sub: 'Field · R+C+B' },
+  ],
+  mixed_bow: [
+    { id: 'mixed_bow_team_women',       name: 'Women Team',        sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_men',         name: 'Men Team',          sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_u21_women',   name: 'U21 Women Team',    sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_u21_men',     name: 'U21 Men Team',      sub: 'Field · R+C+B' },
   ],
 };
 
@@ -492,9 +494,10 @@ function render() {
 // ── BOW TYPE PICKER ───────────────────────────────────────────────────────────
 function renderBowTypePicker(main) {
   const types = [
-    { id: 'recurve',  icon: '🏹', name: 'Recurve',  sub: 'Set points · 3 arrows per set' },
-    { id: 'compound', icon: '⚙️', name: 'Compound', sub: 'Total score · 3 arrows per end' },
-    { id: 'barebow',  icon: '🎯', name: 'Barebow',  sub: 'Set points · No sights or stabilisers' },
+    { id: 'recurve',   icon: '🏹', name: 'Recurve',   sub: 'Set points · 3 arrows per set' },
+    { id: 'compound',  icon: '⚙️', name: 'Compound',  sub: 'Total score · 3 arrows per end' },
+    { id: 'barebow',   icon: '🎯', name: 'Barebow',   sub: 'Set points · No sights or stabilisers' },
+    { id: 'mixed_bow', icon: '🌲', name: 'Mixed Bow', sub: 'Field archery · Recurve + Compound + Barebow' },
   ];
   main.innerHTML = `
     <div class="nav-section-label">Choose bow type</div>
