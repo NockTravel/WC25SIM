@@ -1128,19 +1128,6 @@ function confirmSO() {
   state.phase = 'soReveal';
   render();
 }
-    const myTotal  = arrows.reduce((s, v) => s + arrowScore(v), 0);
-    const oppTotal = oppArrows.reduce((s, v) => s + arrowScore(v), 0);
-
-    if (myTotal > oppTotal)      { state[myPtsKey]++; }
-    else if (myTotal < oppTotal) { state[oppPtsKey]++; }
-    else { resolveSOTie(arrows, oppArrows); }
-  }
-
-  state.arrows = [];
-  state.phase = 'soReveal';
-  render();
-}
-
 function renderSOReveal(main) {
   const d = state.data;
   const rules = state.rules;
