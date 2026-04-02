@@ -25,15 +25,14 @@
       { key: 'r1', label: 'Round 1', sub: '1/32 Elimination' },
       { key: 'r2', label: 'Round 2', sub: '1/16 Elimination' },
       { key: 'r3', label: 'Round 3', sub: '1/8 Elimination'  },
-      // Ladder rounds — opponent is the named seed
-      { key: 'l8', label: 'Ladder vs #8', sub: 'Step-up Ladder' },
-      { key: 'l7', label: 'Ladder vs #7', sub: 'Step-up Ladder' },
-      { key: 'l6', label: 'Ladder vs #6', sub: 'Step-up Ladder' },
-      { key: 'l5', label: 'Ladder vs #5', sub: 'Step-up Ladder' },
-      { key: 'l4', label: 'Ladder vs #4', sub: 'Step-up Ladder' },
-      { key: 'l3', label: 'Ladder vs #3', sub: 'Step-up Ladder' },
-      { key: 'l2', label: 'Ladder vs #2', sub: 'Step-up Ladder' },
-      { key: 'l1', label: 'Ladder vs #1', sub: 'Championship Match' },
+      // Ladder — each key is the rung, label shows who the climber faces
+      { key: 'l8', label: '#8 vs #7',         sub: 'Step-up Ladder' },
+      { key: 'l7', label: 'Ladder vs #6',      sub: 'Step-up Ladder' },
+      { key: 'l6', label: 'Ladder vs #5',      sub: 'Step-up Ladder' },
+      { key: 'l5', label: 'Ladder vs #4',      sub: 'Step-up Ladder' },
+      { key: 'l4', label: 'Ladder vs #3',      sub: 'Step-up Ladder' },
+      { key: 'l3', label: 'Ladder vs #2',      sub: 'Step-up Ladder' },
+      { key: 'l2', label: 'Championship Match', sub: 'vs #1 Seed'    },
     ],
 
     // ── ROUNDS 1-3: max 132 ───────────────────────────────────────────────────
