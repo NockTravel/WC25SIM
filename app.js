@@ -132,19 +132,34 @@ function getRules(divisionKey) {
   return DIVISION_RULES.recurve_individual;
 }
 
-// ── BOW TYPE → DIVISION KEYS ──────────────────────────────────────────────────
-// Used for preflight checks — only check the sentinel division for the selected bow type.
-// Field events use field_-prefixed keys so the preflight must check those too.
+// ── BOW TYPE → SENTINEL DIVISION KEYS ────────────────────────────────────────
+// Used for preflight checks — one sentinel per bow type, no field_ prefix needed
+// because the preflight applies the field translation automatically.
 const BOW_SENTINELS = {
-  recurve:  ['recurve_women',  'recurve_men',  'field_recurve_women',  'field_recurve_men'],
-  compound: ['compound_women', 'compound_men', 'field_compound_women', 'field_compound_men'],
-  barebow:  ['barebow_women',  'barebow_men',  'field_barebow_women',  'field_barebow_men'],
+  recurve:  ['recurve_women',  'recurve_men'],
+  compound: ['compound_women', 'compound_men'],
+  barebow:  ['barebow_women',  'barebow_men'],
 };
+
+// ── FIELD DIVISION KEY TRANSLATION ───────────────────────────────────────────
+// When navigating a field event, the user-facing division key (e.g. 'recurve_women')
+// is translated to the field-prefixed file key (e.g. 'field_recurve_women').
+// This keeps the division picker clean while the file naming stays unambiguous.
+function toFieldKey(divKey) {
+  // Mixed bow team is already field-only, prefix just needs field_ guard
+  if (divKey.startsWith('field_')) return divKey;
+  return 'field_' + divKey;
+}
+
+// Returns the effective division key for file lookup and rule resolution,
+// applying the field prefix when the selected category is field.
+function effectiveDivKey(divKey) {
+  return navCategory === 'field' ? toFieldKey(divKey) : divKey;
+}
 
 // ── DIVISION CATALOGUE ────────────────────────────────────────────────────────
 const DIVISION_CATALOGUE = {
   recurve: [
-    // Outdoor / indoor individual
     { id: 'recurve_women',          name: 'Women',             sub: 'Individual · Set points' },
     { id: 'recurve_men',            name: 'Men',               sub: 'Individual · Set points' },
     { id: 'recurve_u21_women',      name: 'U21 Women',         sub: 'Individual · Set points' },
@@ -157,24 +172,12 @@ const DIVISION_CATALOGUE = {
     { id: 'recurve_u13_men',        name: 'U13 Men',           sub: 'Individual · Set points' },
     { id: 'recurve_50plus_women',   name: '50+ Women',         sub: 'Individual · Set points' },
     { id: 'recurve_50plus_men',     name: '50+ Men',           sub: 'Individual · Set points' },
-    // Outdoor / indoor team
     { id: 'recurve_mixed_team',     name: 'Mixed Team',        sub: '1M+1W · Set points' },
     { id: 'recurve_women_team',     name: 'Women Team',        sub: '3 archer · Set points' },
     { id: 'recurve_men_team',       name: 'Men Team',          sub: '3 archer · Set points' },
     { id: 'recurve_u21_mixed_team', name: 'U21 Mixed Team',    sub: '1M+1W · Set points' },
-    // Field individual
-    { id: 'field_recurve_women',    name: 'Field Women',       sub: 'Individual · Total score' },
-    { id: 'field_recurve_men',      name: 'Field Men',         sub: 'Individual · Total score' },
-    { id: 'field_recurve_u21_women',name: 'Field U21 Women',   sub: 'Individual · Total score' },
-    { id: 'field_recurve_u21_men',  name: 'Field U21 Men',     sub: 'Individual · Total score' },
-    { id: 'field_recurve_u18_women',name: 'Field U18 Women',   sub: 'Individual · Total score' },
-    { id: 'field_recurve_u18_men',  name: 'Field U18 Men',     sub: 'Individual · Total score' },
-    // Field team
-    { id: 'field_recurve_mixed_team',     name: 'Field Mixed Team',     sub: '1M+1W · Total score' },
-    { id: 'field_recurve_u21_mixed_team', name: 'Field U21 Mixed Team', sub: '1M+1W · Total score' },
   ],
   compound: [
-    // Outdoor / indoor individual
     { id: 'compound_women',             name: 'Women',             sub: 'Individual · Total score' },
     { id: 'compound_men',               name: 'Men',               sub: 'Individual · Total score' },
     { id: 'compound_u21_women',         name: 'U21 Women',         sub: 'Individual · Total score' },
@@ -183,50 +186,27 @@ const DIVISION_CATALOGUE = {
     { id: 'compound_u18_men',           name: 'U18 Men',           sub: 'Individual · Total score' },
     { id: 'compound_50plus_women',      name: '50+ Women',         sub: 'Individual · Total score' },
     { id: 'compound_50plus_men',        name: '50+ Men',           sub: 'Individual · Total score' },
-    // Outdoor / indoor team
     { id: 'compound_mixed_team',        name: 'Mixed Team',        sub: '1M+1W · Total score' },
     { id: 'compound_women_team',        name: 'Women Team',        sub: '3 archer · Total score' },
     { id: 'compound_men_team',          name: 'Men Team',          sub: '3 archer · Total score' },
     { id: 'compound_u21_mixed_team',    name: 'U21 Mixed Team',    sub: '1M+1W · Total score' },
-    // Field individual
-    { id: 'field_compound_women',       name: 'Field Women',       sub: 'Individual · Total score' },
-    { id: 'field_compound_men',         name: 'Field Men',         sub: 'Individual · Total score' },
-    { id: 'field_compound_u21_women',   name: 'Field U21 Women',   sub: 'Individual · Total score' },
-    { id: 'field_compound_u21_men',     name: 'Field U21 Men',     sub: 'Individual · Total score' },
-    { id: 'field_compound_u18_women',   name: 'Field U18 Women',   sub: 'Individual · Total score' },
-    { id: 'field_compound_u18_men',     name: 'Field U18 Men',     sub: 'Individual · Total score' },
-    // Field team
-    { id: 'field_compound_mixed_team',     name: 'Field Mixed Team',     sub: '1M+1W · Total score' },
-    { id: 'field_compound_u21_mixed_team', name: 'Field U21 Mixed Team', sub: '1M+1W · Total score' },
   ],
   barebow: [
-    // Outdoor / indoor individual
     { id: 'barebow_women',              name: 'Women',             sub: 'Individual · Set points' },
-    { id: 'barebow_men',               name: 'Men',               sub: 'Individual · Set points' },
+    { id: 'barebow_men',                name: 'Men',               sub: 'Individual · Set points' },
     { id: 'barebow_u21_women',          name: 'U21 Women',         sub: 'Individual · Set points' },
     { id: 'barebow_u21_men',            name: 'U21 Men',           sub: 'Individual · Set points' },
     { id: 'barebow_u18_women',          name: 'U18 Women',         sub: 'Individual · Set points' },
     { id: 'barebow_u18_men',            name: 'U18 Men',           sub: 'Individual · Set points' },
-    // Outdoor / indoor team
     { id: 'barebow_mixed_team',         name: 'Mixed Team',        sub: '1M+1W · Set points' },
     { id: 'barebow_women_team',         name: 'Women Team',        sub: '3 archer · Set points' },
     { id: 'barebow_men_team',           name: 'Men Team',          sub: '3 archer · Set points' },
     { id: 'barebow_u21_mixed_team',     name: 'U21 Mixed Team',    sub: '1M+1W · Set points' },
-    // Field individual
-    { id: 'field_barebow_women',        name: 'Field Women',       sub: 'Individual · Total score' },
-    { id: 'field_barebow_men',          name: 'Field Men',         sub: 'Individual · Total score' },
-    { id: 'field_barebow_u21_women',    name: 'Field U21 Women',   sub: 'Individual · Total score' },
-    { id: 'field_barebow_u21_men',      name: 'Field U21 Men',     sub: 'Individual · Total score' },
-    { id: 'field_barebow_u18_women',    name: 'Field U18 Women',   sub: 'Individual · Total score' },
-    { id: 'field_barebow_u18_men',      name: 'Field U18 Men',     sub: 'Individual · Total score' },
-    // Field team
-    { id: 'field_barebow_mixed_team',     name: 'Field Mixed Team',     sub: '1M+1W · Total score' },
-    { id: 'field_barebow_u21_mixed_team', name: 'Field U21 Mixed Team', sub: '1M+1W · Total score' },
-    // Field mixed bow team (unique to field)
-    { id: 'field_mixed_bow_team_women',    name: 'Mixed Bow Women',   sub: 'Field · R+C+B' },
-    { id: 'field_mixed_bow_team_men',      name: 'Mixed Bow Men',     sub: 'Field · R+C+B' },
-    { id: 'field_mixed_bow_team_u21_women',name: 'Mixed Bow U21 W',   sub: 'Field · R+C+B' },
-    { id: 'field_mixed_bow_team_u21_men',  name: 'Mixed Bow U21 M',   sub: 'Field · R+C+B' },
+    // Mixed bow team — field archery only, listed under barebow as home bow type
+    { id: 'mixed_bow_team_women',       name: 'Mixed Bow Women',   sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_men',         name: 'Mixed Bow Men',     sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_u21_women',   name: 'Mixed Bow U21 W',   sub: 'Field · R+C+B' },
+    { id: 'mixed_bow_team_u21_men',     name: 'Mixed Bow U21 M',   sub: 'Field · R+C+B' },
   ],
 };
 
@@ -311,30 +291,34 @@ function preflightEvents(bowType, callback) {
 
   const sentinels = BOW_SENTINELS[bowType] || [];
   const allEvents = [];
-  Object.values(m).forEach(cat => cat.events.forEach(ev => allEvents.push(ev)));
+  Object.entries(m).forEach(([catKey, cat]) =>
+    cat.events.forEach(ev => allEvents.push({ ev, catKey }))
+  );
 
   let remaining = allEvents.length;
   if (remaining === 0) { callback(); return; }
 
-  allEvents.forEach(ev => {
-    // Find first sentinel division this event actually lists
-    const sentinel = sentinels.find(s => ev.divisions && ev.divisions.includes(s));
+  allEvents.forEach(({ ev, catKey }) => {
+    const isField = catKey === 'field';
+
+    // Find first sentinel that this event lists — applying field translation if needed
+    const sentinel = sentinels.find(s => {
+      const key = isField ? toFieldKey(s) : s;
+      return ev.divisions && ev.divisions.includes(key);
+    });
+
     if (!sentinel) {
-      // Event has no division for this bow type — mark unavailable
       eventAvailability[ev.id] = false;
       remaining--;
       if (remaining === 0) callback();
       return;
     }
 
-    const url = `${ev.folder}/${sentinel}.js`;
+    const fileKey = isField ? toFieldKey(sentinel) : sentinel;
+    const url = `${ev.folder}/${fileKey}.js`;
     fetch(url, { method: 'HEAD' })
-      .then(r => {
-        eventAvailability[ev.id] = r.ok;
-      })
-      .catch(() => {
-        eventAvailability[ev.id] = false;
-      })
+      .then(r => { eventAvailability[ev.id] = r.ok; })
+      .catch(() => { eventAvailability[ev.id] = false; })
       .finally(() => {
         remaining--;
         if (remaining === 0) callback();
@@ -548,11 +532,13 @@ function getDivisionLabel(divKey) {
 
 // ── START TOURNAMENT ──────────────────────────────────────────────────────────
 function startTournament() {
-  // Show loading while division file is fetched
   const main = $('main');
   main.innerHTML = `<div class="checking-indicator" style="justify-content:center;padding:48px 20px"><div class="spinner"></div>Loading…</div>`;
 
-  loadDivision(navEvent, navDiv, (data) => {
+  // Translate div key for field events before loading
+  const divKey = effectiveDivKey(navDiv);
+
+  loadDivision(navEvent, divKey, (data) => {
     if (!data) {
       main.innerHTML = `
         <button class="back-btn" onclick="navEvent=null;render()">← Events</button>
@@ -562,9 +548,10 @@ function startTournament() {
       return;
     }
 
-    const rules = getRules(navDiv);
+    const rules = getRules(divKey);  // field_recurve_women → field_individual rules
     state = {
-      div:   navDiv,
+      div:    navDiv,     // user-facing key (e.g. 'recurve_women')
+      divKey: divKey,     // effective key used for file/rules (e.g. 'field_recurve_women')
       data:  data,
       rules: rules,
       roundIdx: 0,
@@ -1420,12 +1407,13 @@ function goHome() {
 function restartSame() {
   const div = state ? state.div : navDiv;
   const ev  = navEvent;
+  // navCategory must be preserved so effectiveDivKey translates correctly for field
   state = null;
-  navDiv = div;
+  navDiv = navCategory === 'field' ? div.replace(/^field_/, '') : div;
   navEvent = ev;
   if (!navBowType) {
-    if (div && div.startsWith('compound')) navBowType = 'compound';
-    else if (div && div.startsWith('barebow')) navBowType = 'barebow';
+    if (div && div.includes('compound')) navBowType = 'compound';
+    else if (div && div.includes('barebow')) navBowType = 'barebow';
     else navBowType = 'recurve';
   }
   startTournament();
