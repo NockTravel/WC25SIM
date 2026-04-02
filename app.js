@@ -801,7 +801,9 @@ function submitEnd(arrows, total, round) {
       if (soPool && Array.isArray(soPool[0])) {
         state.soOppArrows = rand(soPool);
       } else {
-        state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand([8,9,9,10,10,10]));
+        const maxV = rules.soMaxVal || 10;
+        const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2, maxV-1, maxV-1, maxV, maxV];
+        state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand(fallbackPool));
       }
       state.arrows = [];
       state.phase = 'shootoff';
@@ -1131,7 +1133,9 @@ function confirmSO() {
     // Multi-arrow SO — compare totals (X=10), then X tiebreak, then 50/50
     state.soMyArrows = [...arrows];
     const oppArrows = state.soOppArrows ||
-      Array.from({ length: rules.soArrows }, () => rand([8,9,9,10,10,10]));
+      Array.from({ length: rules.soArrows }, () => rand(
+        Array.from({length: rules.soMaxVal}, (_, i) => i + 1)
+      ));
     state.soOppArrows = oppArrows;
     const myTotal  = arrows.reduce((s, v) => s + arrowScore(v), 0);
     const oppTotal = oppArrows.reduce((s, v) => s + arrowScore(v), 0);
