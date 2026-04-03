@@ -38,10 +38,10 @@ window.EVENT_MANIFEST = {
         ]
       },
       {
-        id: '2025-aa-nationals',
+        id: '2025-nationals',
         label: '2025 Nationals',
         sub: 'AIS Canberra, Australia · Nov 2025',
-        folder: 'data/events/outdoor/2025-aa-nationals',
+        folder: 'data/events/outdoor/2025-nationals',
         divisions: [
           'recurve_women', 'recurve_men',
           'compound_women', 'compound_men',
@@ -61,6 +61,24 @@ window.EVENT_MANIFEST = {
     label: 'Field',
     icon: '🌲',
     events: [
+      {
+        id: '2024-aa-field-open',
+        label: '2024 Archery Australia Field Open',
+        sub: 'Morwell, Australia · Mar 2024',
+        folder: 'data/events/field/2024-aa-field-open',
+        divisions: [
+          'mixed_bow_team_women', 'mixed_bow_team_men',
+        ]
+      },
+      {
+        id: '2024-aa-field-open',
+        label: 'Archery Australia Field Open 2024',
+        sub: 'Morwell, Australia · Mar 2024',
+        folder: 'data/events/field/2024-aa-field-open',
+        divisions: [
+          'mixed_bow_team_women', 'mixed_bow_team_men',
+        ]
+      },
       {
         id: '2025-euro-field',
         label: '2025 European Field Championships',
