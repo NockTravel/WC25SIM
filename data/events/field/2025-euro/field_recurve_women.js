@@ -5,7 +5,7 @@
 // Registers: window.DIV_2025_euro_field_field_recurve_women
 //
 // Rules applied by app.js for 'field_recurve_women':
-//   scoring: total, arrowsPerEnd: 1, numEnds: varies, maxArrowVal: 6
+//   scoring: total, arrowsPerEnd: 3, numEnds: varies, maxArrowVal: 6
 //   soArrows: 1
 //
 // All scores extracted from the published result brackets (AR_C75A / AR_C75B).
