@@ -38,10 +38,10 @@ window.EVENT_MANIFEST = {
         ]
       },
       {
-        id: '2025-nationals',
+        id: '2025-aa-nationals',
         label: '2025 Nationals',
         sub: 'AIS Canberra, Australia · Nov 2025',
-        folder: 'data/events/outdoor/2025-nationals',
+        folder: 'data/events/outdoor/2025-aa-nationals',
         divisions: [
           'recurve_women', 'recurve_men',
           'compound_women', 'compound_men',
