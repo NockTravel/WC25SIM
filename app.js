@@ -382,59 +382,56 @@ function decomposeEnd(endTotal, numArrows, maxArrowVal, allowX) {
 }
 
 // ── PREFLIGHT: CHECK FILE AVAILABILITY ───────────────────────────────────────
-// For each event, checks all division files relevant to the selected bow type.
-// Marks the event available as soon as any one file responds 200.
-// This means events become visible incrementally as data files are added.
-function preflightEvents(bowType, callback) {
+// Checks only events in the selected category, all requests fire in parallel.
+// Marks each event available as soon as any one candidate file responds 200.
+function preflightEvents(bowType, category, callback) {
   const m = window.EVENT_MANIFEST;
   if (!m) { callback(); return; }
 
+  const cat = m[category];
+  if (!cat || !cat.events || cat.events.length === 0) { callback(); return; }
+
   const sentinels = BOW_SENTINELS[bowType] || [];
-  const allEvents = [];
-  Object.entries(m).forEach(([catKey, cat]) =>
-    cat.events.forEach(ev => allEvents.push({ ev, catKey }))
-  );
+  const isField = category === 'field';
 
-  let remaining = allEvents.length;
-  if (remaining === 0) { callback(); return; }
+  let remaining = cat.events.length;
 
-  allEvents.forEach(({ ev, catKey }) => {
-    const isField = catKey === 'field';
-
-    // Build list of candidates — check manifest with plain key, fetch with field-translated key
+  cat.events.forEach(ev => {
     const candidates = sentinels
       .filter(s => ev.divisions && ev.divisions.includes(s))
       .map(s => isField ? toFieldKey(s) : s);
 
     if (candidates.length === 0) {
-      // Event has no divisions for this bow type
       eventAvailability[ev.id] = false;
       remaining--;
       if (remaining === 0) callback();
       return;
     }
 
-    // Try each candidate in sequence — mark available on first 200, unavailable if all fail
-    function tryNext(i) {
-      if (i >= candidates.length) {
-        eventAvailability[ev.id] = false;
-        remaining--;
-        if (remaining === 0) callback();
-        return;
-      }
-      fetch(`${ev.folder}/${candidates[i]}.js`, { method: 'HEAD' })
+    // Fire all candidate requests in parallel — resolve on first 200
+    let resolved = false;
+    let settled = 0;
+
+    candidates.forEach(candidate => {
+      fetch(`${ev.folder}/${candidate}.js`, { method: 'HEAD' })
         .then(r => {
-          if (r.ok) {
+          if (!resolved && r.ok) {
+            resolved = true;
             eventAvailability[ev.id] = true;
             remaining--;
             if (remaining === 0) callback();
-          } else {
-            tryNext(i + 1);
           }
         })
-        .catch(() => tryNext(i + 1));
-    }
-    tryNext(0);
+        .catch(() => {})
+        .finally(() => {
+          settled++;
+          if (!resolved && settled === candidates.length) {
+            eventAvailability[ev.id] = false;
+            remaining--;
+            if (remaining === 0) callback();
+          }
+        });
+    });
   });
 }
 
@@ -586,7 +583,7 @@ function selectCategory(key) {
     <button class="back-btn" onclick="navCategory=null;render()">← Disciplines</button>
     <div class="checking-indicator"><div class="spinner"></div>Checking events…</div>`;
 
-  preflightEvents(navBowType, () => render());
+  preflightEvents(navBowType, key, () => render());
 }
 
 // ── EVENT PICKER ──────────────────────────────────────────────────────────────
