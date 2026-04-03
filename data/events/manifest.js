@@ -70,15 +70,7 @@ window.EVENT_MANIFEST = {
           'mixed_bow_team_women', 'mixed_bow_team_men',
         ]
       },
-      {
-        id: '2024-aa-field-open',
-        label: 'Archery Australia Field Open 2024',
-        sub: 'Morwell, Australia · Mar 2024',
-        folder: 'data/events/field/2024-aa-field-open',
-        divisions: [
-          'mixed_bow_team_women', 'mixed_bow_team_men',
-        ]
-      },
+      
       {
         id: '2025-euro-field',
         label: '2025 European Field Championships',
