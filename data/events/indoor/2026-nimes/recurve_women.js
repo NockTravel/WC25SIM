@@ -2,7 +2,7 @@
 // 16-18 Jan 2026
 // Nimes Archery Tournament 2026 - IWS Stage 5
 // Division: Recurve Women
-// Registers: window.DIV_2026_nimes_iws_5_recurve_women
+// Registers: window.DIV_2026_nimes_recurve_women
 //
 // Rules applied by app.js for 'recurve_women':
 //   scoring: sets, arrowsPerEnd: 3, numEnds: 5, winPts: 6
@@ -13,7 +13,7 @@
 // SO values shown explicitly in the bracket are included.
 
 (function () {
-  window.DIV_2026_nimes_iws_5_recurve_women = {
+  window.DIV_2026_nimes_recurve_women = {
 
     label: 'Recurve Women',
 
