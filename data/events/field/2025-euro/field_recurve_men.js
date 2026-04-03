@@ -83,7 +83,7 @@
     },
 
     // No SO scores shown anywhere in the bracket — fill in manually.
-    so: [],  // no SO data in bracket — fill in manually
+    so: [6, 5, 5, 5, 4, 4],  // no SO data in bracket — fill in manually
 
   };
 }());
