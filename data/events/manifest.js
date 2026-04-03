@@ -62,6 +62,28 @@ window.EVENT_MANIFEST = {
     icon: '🌲',
     events: [
       {
+        id: '2025-euro-field',
+        label: '2025 European Field Championships',
+        sub: 'Ksiaz-Walbrzych, Poland · Sep 2025',
+        folder: 'data/events/field/2025-euro-field',
+        divisions: [
+          'recurve_women', 'recurve_men',
+          'recurve_u21_women', 'recurve_u21_men',
+          'recurve_u18_women', 'recurve_u18_men',
+          'compound_women', 'compound_men',
+          'compound_u21_women', 'compound_u21_men',
+          'compound_u18_women', 'compound_u18_men',
+          'barebow_women', 'barebow_men',
+          'barebow_u21_women', 'barebow_u21_men',
+          'barebow_u18_women', 'barebow_u18_men',
+          'recurve_mixed_team', 'recurve_u21_mixed_team',
+          'compound_mixed_team', 'compound_u21_mixed_team',
+          'barebow_mixed_team', 'barebow_u21_mixed_team',
+          'mixed_bow_team_women', 'mixed_bow_team_men',
+          'mixed_bow_team_u21_women', 'mixed_bow_team_u21_men',
+        ]
+      },
+      {
         id: '2024-world-field',
         label: '2024 World Field Championships',
         sub: 'Lac La Biche, Canada · Sep 2024',
