@@ -6,7 +6,7 @@
 (function () {
   window.DIV_2024_world_field_mixed_bow_team_u21_men = {
 
-    label: 'Recurve U21 Men Team',
+    label: 'Field Mixed Bow Team U21 Men',
 
     rounds: [
       { key: 'qf', label: 'Quarterfinal', sub: 'Top 8',           numEnds: 6 },
