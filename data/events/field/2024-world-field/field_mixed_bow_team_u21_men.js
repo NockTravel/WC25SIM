@@ -1,10 +1,10 @@
 // Lac La Biche (CAN) / 16-22 Sep 2024
 // Lac La Biche 2024 World Archery Field Championships
 // Division: Recurve Under 21 Men Team
-// Registers: window.DIV_2024_world_field_mixed_bow_team_u21_men
+// Registers: window.DIV_2024_world_field_field_mixed_bow_team_u21_men
 
 (function () {
-  window.DIV_2024_world_field_mixed_bow_team_u21_men = {
+  window.DIV_2024_world_field_field_mixed_bow_team_u21_men = {
 
     label: 'Field Mixed Bow Team U21 Men',
 
