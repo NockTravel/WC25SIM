@@ -72,7 +72,7 @@
           59, 52,  // INA v BAN  (ended 6-2)
           54, 52,  // MEX v KAZ  (SO — KAZ wins T.28 v T.26)
         ],
-        so: [26, 28, 28, 28, 26, 28],
+        so: [[9, 9, 8], [10, 9, 9], [x, 9, 9], [10, 9, 9], [10, 9, 7], [10, 9, 9]],
         // IND T.26 v DEN T.28 (DEN wins)
         // CAN T.28 v GBR T.28+ (GBR wins)
         // MEX T.26 v KAZ T.28 (KAZ wins)
@@ -107,7 +107,7 @@
           57, 56,  // TPE v GER
           55, 56,  // GBR v JPN
           51, 57,  // ITA v ESP
-          55, 55,  // USA v INA  — ⚠ INA score not shown separately; bracket shows USA 6 (55,58,55,58)
+          55, 54,  // USA v INA  — ⚠ INA score not shown separately; bracket shows USA 6 (55,58,55,58)
           56, 57,  // UKR v BRA
           56, 53,  // KAZ v CHN
         ],
@@ -127,7 +127,7 @@
           57, 58,  // TPE v GER
           53, 59,  // GBR v JPN
           54, 55,  // ITA v ESP
-          55, 55,  // USA v INA
+          55, 57,  // USA v INA
           53, 58,  // UKR v BRA  (ended 0-6)
           48, 56,  // KAZ v CHN
         ],
@@ -140,7 +140,7 @@
           58, 57,  // USA v INA — ⚠ INA 4th set score not shown
           52, 55,  // KAZ v CHN  (ended 2-6)
         ],
-        so: [],
+        so: [[9, 9, 9], [10, 9, 9], [x, 9, 9], [10, 9, 9], [10, 9, 7], [10, 9, 9]],
         // ⚠ INA's scores in r2 vs USA not readable from bracket text — USA won 6 shown
       },
 
@@ -173,7 +173,7 @@
           57, 57,  // GER v JPN  (ended 3-5)
           54, 53,  // ESP v USA  (SO — USA wins T.29 v T.28)
         ],
-        so: [29, 28, 28, 29],
+        so: [[10, 9, 9], [10, 10, 9], [10, 10, 9], [x, 9, 9]],
         // KOR T.29 beat FRA T.28
         // USA T.29 beat ESP T.28
       },
@@ -198,7 +198,7 @@
         4: [
           57, 54,  // KOR v JPN  (SO — KOR wins T.30 v T.28)
         ],
-        so: [30, 28],
+        so: [[10, 10, 10], [10, 9, 9]],
         // KOR T.30 beat JPN T.28
       },
 
@@ -218,7 +218,7 @@
           59, 56,  // KOR v USA  (ended 6-0)
           59, 56,  // JPN v BRA  (ended 6-0)
         ],
-        so: [[x, 9, 9], [10, 9, 9], [10, 9, 8], [9,9,9], [10, 8, 8]],
+        so: [[x, 9, 9], [10, 9, 9], [10, 9, 8], [9,9,9]],
       },
 
     },
