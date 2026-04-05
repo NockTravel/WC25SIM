@@ -2,7 +2,7 @@
 // 13-21 Sep 2025
 // European Field Championships 2025
 // Division: Field Recurve Men Team
-// Registers: window.DIV_2025_euro_field_field_moxed_bow_team_men
+// Registers: window.DIV_2025_euro_field_field_mixed_bow_team_men
 //
 // Rules applied by app.js for 'field_recurve_men_team':
 //   scoring: total, arrowsPerEnd: 3, numEnds: varies, maxArrowVal: 6
@@ -14,7 +14,7 @@
 // Final rank: 1 GER, 2 ESP, 3 ITA, 4 SLO, 5 FRA 58, 6 GBR 55, 7 CZE 54, 8 CRO 51
 
 (function () {
-  window.DIV_2025_euro_field_field_moxed_bow_team_men = {
+  window.DIV_2025_euro_field_field_mixed_bow_team_men = {
 
     label: 'Field Recurve Men Team',
 
