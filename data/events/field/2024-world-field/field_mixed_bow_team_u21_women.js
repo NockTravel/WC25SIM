@@ -1,7 +1,7 @@
 d// Lac La Biche (CAN) / 16-22 Sep 2024
 // Lac La Biche 2024 World Archery Field Championships
 // Division: Recurve Under 21 Women Team
-// Registers: window.DIV_2024_world_field_mixed_bow_team_u21_women 
+// Registers: window.DIV_2024_world_field_field_mixed_bow_team_u21_women 
 //
 // Only 2 teams — direct final, no bronze.
 
