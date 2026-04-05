@@ -73,7 +73,7 @@
           53, 57,  // UZB v JPN  (ended 2-6)
           52, 53,  // GBR v NED  (SO — NED wins T.28 v T.26)
         ],
-        so: [[9, 8, 8], [9, 9, 8], [9, 9, 8], [10, 9, 9]],
+        so: [25, 26, 26, 28],
         // INA T.25 v KAZ T.26 (KAZ wins)
         // GBR T.26 v NED T.28 (NED wins)
       },
@@ -126,7 +126,7 @@
           51, 55,  // ESP v JPN  (ended 3-5)
           55, 58,  // NED v CHN  (ended 2-6)
         ],
-        so: [[10, 9, 9], [9, 9, 9]],
+        so: [28, 27],
         // TPE T.28+ beat GER T.27
       },
 
@@ -159,7 +159,7 @@
           54, 57,  // TPE v USA  (SO — TPE wins T.28+ v T.28)
           55, 53,  // IND v TUR  (ended 6-2)
         ],
-        so: [[10, 9, 9], [10, 9, 9]],
+        so: [28, 28],
         // TPE T.28+ beat USA T.28
       },
 
@@ -184,7 +184,7 @@
           52, 53,  // KOR v TPE  (SO — TPE wins T.28 v T.27)
           51, 54,  // IND v JPN  (ended 2-6)
         ],
-        so: [[10, 9, 8], [10, 9, 9]],
+        so: [27, 28]],
         // KOR T.27 v TPE T.28 (TPE wins)
       },
 
@@ -207,7 +207,7 @@
         4: [
           58, 56,  // KOR v IND  (ended 5-3)
         ],
-        so: [[10, 9, 8], [9,9,9], [10, 8, 8]],
+        so: [27, 27, 26, 28],
       },
 
     },
