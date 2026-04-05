@@ -771,8 +771,20 @@ function checkSetMatchEnd(rules, pool) {
 
   if (myWon || oppWon || allDone) {
     if (myP === opP) {
-      // Shoot-off
-      state.soOppRaw = rand(pool.so || [8, 9, 9, 10, 10]);
+      // Shoot-off — route to correct SO state variable based on format
+      const soPool = pool.so;
+      if (rules.soArrows === 1) {
+        // Individual SO — flat pool of single values
+        state.soOppRaw = rand(soPool || [8, 9, 9, 10, 10]);
+      } else if (soPool && Array.isArray(soPool[0])) {
+        // Team SO — pool of arrow arrays, draw one array
+        state.soOppArrows = rand(soPool);
+      } else {
+        // Team SO fallback — generate plausible arrows within soMaxVal
+        const maxV = rules.soMaxVal || 10;
+        const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2, maxV-1, maxV-1, maxV, maxV];
+        state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand(fallbackPool));
+      }
       state.arrows = [];
       state.phase = 'shootoff';
     } else {
@@ -1475,7 +1487,16 @@ function confirmBronzeArrows(arrows, total) {
     const oppWon = opP >= rules.winPts && opP > myP;
     if (myWon || oppWon || played >= rules.numEnds) {
       if (myP === opP) {
-        state.soOppRaw = rand(pool.so || [8,9,9,10]);
+        const soPool = pool.so;
+        if (rules.soArrows === 1) {
+          state.soOppRaw = rand(soPool || [8,9,9,10]);
+        } else if (soPool && Array.isArray(soPool[0])) {
+          state.soOppArrows = rand(soPool);
+        } else {
+          const maxV = rules.soMaxVal || 10;
+          const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2,maxV-1,maxV-1,maxV,maxV];
+          state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand(fallbackPool));
+        }
         state.arrows = [];
         state.phase = 'shootoff';
       } else { resolveBronze(); }
