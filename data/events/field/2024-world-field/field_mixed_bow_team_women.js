@@ -8,7 +8,7 @@
 (function () {
   window.DIV_2024_world_field_field_mixed_bow_team_women = {
 
-    label: 'Women Team',
+    label: 'Mixed Bow Team Women',
 
     rounds: [
       { key: 'qf', label: 'Quarterfinal', sub: 'Top 8',           numEnds: 6 },
@@ -50,7 +50,7 @@
 
     },
 
-    so: [[5,5,5], [5,4,3], [5,5,4], [4,4,3]],
+    so: [[5,5,5], [5,4,5], [4,4,4], [4,4,3]],
     // Germany T.15 beat Romania T.12 (qf)
     // Italy T.14 beat USA T.11 (gold final)
 
