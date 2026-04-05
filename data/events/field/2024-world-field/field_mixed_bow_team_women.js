@@ -1,7 +1,7 @@
 // Lac La Biche (CAN) / 16-22 Sep 2024
 // Lac La Biche 2024 World Archery Field Championships
 // Division: Women Team (Compound)
-// Registers: window.DIV_2024_world_field_mixed_bow_team_women
+// Registers: window.DIV_2024_world_field_mixed_bow_team_women 
 //
 // SO: Germany T.15 v Romania T.12 (qf); Italy T.14 v USA T.11 (sf)
 
