@@ -319,6 +319,11 @@ let state = null;
 function $(id) { return document.getElementById(id); }
 
 function rand(arr) {
+  if (!arr || arr.length === 0) return undefined;
+  // Handle arrays of arrays (team SO pools) — don't filter, just pick randomly
+  if (Array.isArray(arr[0])) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
   const clean = arr.filter(v => typeof v === 'number' && isFinite(v));
   return clean[Math.floor(Math.random() * clean.length)];
 }
