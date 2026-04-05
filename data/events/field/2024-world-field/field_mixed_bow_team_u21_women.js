@@ -8,7 +8,7 @@
 (function () {
   window.DIV_2024_world_field_mixed_bow_team_u21_women = {
 
-    label: 'Recurve U21 Women Team',
+    label: 'Field Mixed Bow Team U21 Women',
 
     rounds: [
       { key: 'f', label: 'Final', sub: 'Gold Medal Match', numEnds: 4 },
