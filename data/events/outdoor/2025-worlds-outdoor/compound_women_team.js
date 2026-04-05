@@ -115,7 +115,7 @@
 
     },
 
-    so: [[10, 10, 10], [10, 10, 9], [10, 10, 10], [10, 10, 9]. [10, 10, 9], [10, 9, 9]],  // SO totals shown as T.28/T.29/T.30 — individual arrow values not provided; fill in manually
+    so: [[10, 10, 10], [10, 10, 9], [10, 10, 10], [10, 10, 9], [10, 10, 9], [10, 9, 9]],  // SO totals shown as T.28/T.29/T.30 — individual arrow values not provided; fill in manually
 
   };
 }());
