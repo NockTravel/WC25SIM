@@ -1,4 +1,4 @@
-// Gwangju (KOR) / 5-12 Sep 2025
+// Gwangju (KOR) / 5-12 Sep 2025 
 // Gwangju 2025 Hyundai World Archery Championships
 // Division: Recurve Men Team
 // Registers: window.DIV_2025_worlds_outdoor_recurve_men_team
