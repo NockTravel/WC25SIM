@@ -2,7 +2,7 @@
 // 13-21 Sep 2025
 // European Field Championships 2025
 // Division: Field Recurve Women Team
-// Registers: window.DIV_2025_euro_field_field_recurve_women_team
+// Registers: window.DIV_2025_euro_field_field_mixed_bow_team_women
 //
 // Rules applied by app.js for 'field_recurve_women_team':
 //   scoring: total, arrowsPerEnd: 3, numEnds: varies, maxArrowVal: 6
@@ -15,7 +15,7 @@
 // Final rank: 1 ITA, 2 FRA, 3 GER, 4 ESP, 5 ROU 54, 6 POL 53, 7 NED 50
 
 (function () {
-  window.DIV_2025_euro_field_field_recurve_women_team = {
+  window.DIV_2025_euro_field_field_mixed_bow_team_women = {
 
     label: 'Field Recurve Women Team',
 
