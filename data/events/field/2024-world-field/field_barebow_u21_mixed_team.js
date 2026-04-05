@@ -1,12 +1,12 @@
 // Lac La Biche (CAN) / 16-22 Sep 2024
 // Lac La Biche 2024 World Archery Field Championships
 // Division: Barebow Under 21 Mixed Team
-// Registers: window.DIV_2024_world_field_barebow_u21_mixed_team
+// Registers: window.DIV_2024_world_field_field_barebow_u21_mixed_team
 //
 // Only 3 teams — Italy had a bye, USA gets bronze by default (no match played).
 
 (function () {
-  window.DIV_2024_world_field_barebow_u21_mixed_team = {
+  window.DIV_2024_world_field_field_barebow_u21_mixed_team = {
 
     label: 'Barebow U21 Mixed Team',
 
