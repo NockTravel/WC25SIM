@@ -8,7 +8,7 @@
 (function () {
   window.DIV_2024_world_field_field_mixed_bow_team_women = {
 
-    label: 'Mixed Bow Team Women',
+    label: 'Field Mixed Bow Team Women',
 
     rounds: [
       { key: 'qf', label: 'Quarterfinal', sub: 'Top 8',           numEnds: 6 },
