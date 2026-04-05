@@ -2,7 +2,7 @@
 // 5-12 Sep 2025
 // Gwangju 2025 Hyundai World Archery Championships
 // Division: Recurve Men
-// Registers: window.DIV_2025_world_champs_recurve_men
+// Registers: window.DIV_2025_worlds_outdoor_recurve_men
 //
 // Rules applied by app.js for 'recurve_men':
 //   scoring: sets, arrowsPerEnd: 3, numEnds: 5, winPts: 6
@@ -11,7 +11,7 @@
 // Seeds 1-8 pre-seeded into 1/16. All set scores extracted from AR_C75A/AR_C75B.
 
 (function () {
-  window.DIV_2025_world_champs_recurve_men = {
+  window.DIV_2025_worlds_outdoor_recurve_men = {
 
     label: 'Recurve Men',
 
@@ -283,7 +283,7 @@
           27, 28,  // SJÖBERG v VALLADONT  (ended 3-7)
           29, 29,  // BOMMADEVARA v GAZOZ  (ended 2-6... wait GAZOZ wins)
         ],
-        so: [9, 10, 9, 9, 9, 8, 9, 10, 9, 10, 10, 8, 10, 9],
+        so: [9, 8, 9, 10, 8, 9, 8, 10],
         // LE Quoc Phong T.9 v ROOS T.10 (ROOS wins)
         // JANTSAN T.9+ v KREJCI T.9 (JANTSAN wins)
         // LISNIAK T.8 v RAHUL T.9 (RAHUL wins)
@@ -443,7 +443,7 @@
           26, 30,  // ROJAS v DROR  (SO)
           29, 29,  // AKKOYUN v SU YY
         ],
-        so: [9, 9, 10, 9, 10, 9, 10, 8, 10, 10, 9, 8, 9, 10, 9, 10],
+        so: [10, 10, 9, 9, 9, 9, 8, 8, 10, 10, 8, 9, 9, 9, 10, 7],
         // SADIKOV T.9+ v CHIRAULT T.9 (SADIKOV wins)
         // LI Z T.10 v HUSTON T.9 (LI Z wins)
         // ELLISON T.10 v BOBORAJABOV T.9 (ELLISON wins)
@@ -560,7 +560,7 @@
           26, 29,  // GRANDE v MUSOLESI  (ended 7-3)
           25, 29,  // AKKOYUN v SU YY  (ended 3-7)
         ],
-        so: [9, 9, 9, 10, 10, 9, 10, 8, 10, 9],
+        so: [10, 8, 9, 10, 10, 9, 9, 9],
         // BORSANI T.9+ v NESPOLI T.9 (BORSANI wins)
         // ACHA T.10 v SADIKOV T.9 (ACHA wins)
         // TANG CC T.10 v KRAMER T.9 (TANG wins)
@@ -621,7 +621,7 @@
           30, 29,  // TANG CC v MACHAVARIANI  (ended 7-3)
           28, 29,  // SU YY v TEMIÑO  (ended 4-6)
         ],
-        so: [],
+        so: [10, 8, 9, 10, 10, 9, 9, 9],
       },
 
       // ── QUARTERFINAL ─────────────────────────────────────────────────────────
@@ -686,7 +686,7 @@
           28, 28,  // D'ALMEIDA v BORSANI
           29, 30,  // KIM JD v TEMIÑO
         ],
-        so: [],
+        so: [10, 10, 9, 9, 9, 8],
       },
 
       // ── FINAL ────────────────────────────────────────────────────────────────
