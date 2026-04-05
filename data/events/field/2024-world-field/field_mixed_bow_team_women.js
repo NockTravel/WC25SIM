@@ -3,7 +3,7 @@
 // Division: Women Team (Compound)
 // Registers: window.DIV_2024_world_field_field_mixed_bow_team_women 
 //
-// SO: Germany T.15 v Romania T.12 (qf); Italy T.14 v USA T.11 (sf)
+// SO: Germany T.15 v Romania T.12 (qf); Italy T.14 v USA T.11 (sf) 
 
 (function () {
   window.DIV_2024_world_field_field_mixed_bow_team_women = {
