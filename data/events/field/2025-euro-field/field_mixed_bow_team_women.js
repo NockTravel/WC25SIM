@@ -12,7 +12,7 @@
 // No SO scores shown in bracket — so array left empty for manual fill.
 //
 // Bracket structure: QF (1/4), SF, Final only. ITA had a bye into QF.
-// Final rank: 1 ITA, 2 FRA, 3 GER, 4 ESP, 5 ROU 54, 6 POL 53, 7 NED 50
+// Final rank: 1 ITA, 2 FRA, 3 GER, 4 ESP, 5 ROU 54, 6 POL 53, 7 NED 50 
 
 (function () {
   window.DIV_2025_euro_field_field_mixed_bow_team_women = {
