@@ -547,7 +547,7 @@ function renderBowTypePicker(main) {
   const types = [
     { id: 'recurve',   icon: '🏹', name: 'Recurve',   sub: 'Set points · 3 arrows per set' },
     { id: 'compound',  icon: '⚙️', name: 'Compound',  sub: 'Total score · 3 arrows per end' },
-    { id: 'barebow',   icon: '🎯', name: 'Barebow',   sub: 'Set points · No sights or stabilisers · Includes Longbow' },
+    { id: 'barebow',   icon: '🎯', name: 'Barebow',   sub: 'Set points · No sights or stabilisers' },
     { id: 'mixed_bow', icon: '🌲', name: 'Mixed Bow', sub: 'Field archery · Recurve + Compound + Barebow' },
     { id: 'longbow',   icon: '🏹', name: 'Longbow',   sub: 'Lancaster Classic format' },
   ];
