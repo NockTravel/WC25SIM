@@ -1979,7 +1979,8 @@ function restartSame() {
   navEvent = ev;
   if (!navBowType) {
     if (div && div.includes('compound')) navBowType = 'compound';
-    else if (div && div.includes('barebow') || div === 'longbow') navBowType = 'barebow';
+    else if (div && div.includes('barebow')) navBowType = 'barebow';
+    else if (div === 'longbow') navBowType = 'longbow';
     else navBowType = 'recurve';
   }
   startTournament();
