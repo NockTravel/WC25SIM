@@ -61,7 +61,7 @@
     },
 
     // SO pool for rounds 1-3 — no SO data in bracket, fill in manually
-    so: [],
+    so: [11,10,10,9,9],
 
     // ── LADDER ────────────────────────────────────────────────────────────────
     // l4: Gupta(#4) v Baek(#3) → Gupta wins 125 v 121
