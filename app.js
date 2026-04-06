@@ -5,7 +5,7 @@
 // ── DIVISION RULES ────────────────────────────────────────────────────────────
 // Single source of truth for all game logic parameters.
 // scoring:      'sets'  → set-point system (recurve / barebow)
-//               'total' → cumulative score (compound) 
+//               'total' → cumulative score (compound)
 //               'lancaster' → Lancaster-specific format
 // arrowsPerEnd: arrows shot per set or end
 // numEnds:      total sets or ends in a match
@@ -117,6 +117,8 @@ function getRules(divisionKey) {
   const k = divisionKey;
   // Lancaster format — detected by event format flag set on navEvent
   if (navEvent && navEvent.format === 'lancaster') return DIVISION_RULES.lancaster_individual;
+  // Longbow also uses Lancaster individual rules
+  if (k === 'longbow') return DIVISION_RULES.lancaster_individual;
   // Field mixed bow team
   if (k.includes('mixed_bow_team')) return DIVISION_RULES.field_mixed_bow_team;
   // Field mixed team
@@ -172,6 +174,9 @@ const BOW_SENTINELS = {
   mixed_bow: [
     'mixed_bow_team_women', 'mixed_bow_team_men',
     'mixed_bow_team_u21_women', 'mixed_bow_team_u21_men',
+  ],
+  longbow: [
+    'longbow',
   ],
 };
 
@@ -241,6 +246,9 @@ const DIVISION_CATALOGUE = {
     { id: 'mixed_bow_team_men',         name: 'Men Team',          sub: 'Field · R+C+B' },
     { id: 'mixed_bow_team_u21_women',   name: 'U21 Women Team',    sub: 'Field · R+C+B' },
     { id: 'mixed_bow_team_u21_men',     name: 'U21 Men Team',      sub: 'Field · R+C+B' },
+  ],
+  longbow: [
+    { id: 'longbow', name: 'Longbow', sub: 'Lancaster format' },
   ],
 };
 
@@ -541,6 +549,7 @@ function renderBowTypePicker(main) {
     { id: 'compound',  icon: '⚙️', name: 'Compound',  sub: 'Total score · 3 arrows per end' },
     { id: 'barebow',   icon: '🎯', name: 'Barebow',   sub: 'Set points · No sights or stabilisers' },
     { id: 'mixed_bow', icon: '🌲', name: 'Mixed Bow', sub: 'Field archery · Recurve + Compound + Barebow' },
+    { id: 'longbow',   icon: '🏹', name: 'Longbow',   sub: 'Lancaster Classic format' },
   ];
   main.innerHTML = `
     <div class="nav-section-label">Choose bow type</div>
@@ -1970,7 +1979,7 @@ function restartSame() {
   navEvent = ev;
   if (!navBowType) {
     if (div && div.includes('compound')) navBowType = 'compound';
-    else if (div && div.includes('barebow')) navBowType = 'barebow';
+    else if (div && div.includes('barebow') || div === 'longbow') navBowType = 'barebow';
     else navBowType = 'recurve';
   }
   startTournament();
