@@ -1,116 +1,88 @@
-// Lancaster Archery Academy (26LAC)
-// Lancaster (PA), 22-25 Jan 2026
-// 2026 Lancaster Archery Classic
-// Division: Women's Open Pro (Compound Women)
+// 2026 Lancaster Archery Classic — Lancaster, PA · Jan 2026
+// Division: Women's Open Pro (Compound)
 // Registers: window.DIV_2026_lancaster_compound_women
 //
-// Rules: scoring: lancaster, arrowsPerEnd: 3, numEnds: 4
-//        maxArrowVal: 11 (qual) / 12 (ladder), soArrows: 1
-//
-// Final rank: 1 Roner Elisa (ITA), 2 Gibson Ella (GBR) — wait, bracket shows:
-//   Match 1: Roner E 129 v Moore J 126 — Roner wins (championship)
-//   Match 2: Roner E 129 v Gibson E 117 — Roner wins (l3)
-//   Match 4: Borgmeyer J 127 v Roner E 129 — Roner wins (l4)
-//   Bronze match 3: Borgmeyer J 127 v (opponent) 129
-// Final rank: 1 Roner, 2 Moore?, 3 Borgmeyer, per bracket positions.
-// Actually: 1 Roner (winner), 2 Moore (lost championship to Roner), 
-//           3 Borgmeyer, 4 (whoever lost l3)
-//
-// NOTE: compound scores at Lancaster use maxArrowVal 11 (qual) and 12 (ladder),
-// but compound archers at this event shoot the Lancaster face (same as recurve/barebow).
-// Scores here are much higher than outdoor compound (max 33/end vs 30 outdoor).
+// ── LANCASTER FORMAT NOTES ────────────────────────────────────────────────────
+// Rounds 1-3: cumulative total, 4 ends of 3 arrows, max arrow = 11, max match = 132
+// Tiebreak: most 11s wins. If equal → single arrow SO, max 11.
+// Ladder: 4 seeds only (smaller field than compound open).
+// Ladder rungs: l4 (#4 v #3), l3 (winner v #2), l2 (winner v #1 — championship)
+// Ladder seeding based on accumulated r1+r2+r3 total.
 
 (function () {
   window.DIV_2026_lancaster_compound_women = {
 
     label: "Women's Open Pro",
+    format: 'lancaster',
 
     rounds: [
-      { key: 'r1', label: 'Round 1',          sub: 'Qualifying' },
-      { key: 'r2', label: 'Round 2',          sub: 'Qualifying' },
-      { key: 'r3', label: 'Round 3',          sub: 'Qualifying' },
-      { key: 'l8', label: 'Ladder — Step 1',  sub: '#7 vs #8'   },
-      { key: 'l7', label: 'Ladder — Step 2',  sub: 'vs #6 Seed' },
-      { key: 'l6', label: 'Ladder — Step 3',  sub: 'vs #5 Seed' },
-      { key: 'l5', label: 'Ladder — Step 4',  sub: 'vs #4 Seed' },
-      { key: 'l4', label: 'Ladder — Step 5',  sub: 'vs #3 Seed' },
-      { key: 'l3', label: 'Ladder — Step 6',  sub: 'vs #2 Seed' },
-      { key: 'l2', label: 'Championship',      sub: 'vs #1 Seed' },
+      { key: 'r1', label: 'Round 1', sub: '1/16 Elimination' },
+      { key: 'r2', label: 'Round 2', sub: '1/8 Elimination'  },
+      { key: 'l4', label: '#4 vs #3',          sub: 'Step-up Ladder' },
+      { key: 'l3', label: 'Ladder vs #2',       sub: 'Step-up Ladder' },
+      { key: 'l2', label: 'Championship Match', sub: 'vs #1 Seed'     },
     ],
 
+    // ── LADDER SEEDING THRESHOLDS ─────────────────────────────────────────────
+    // Based on 2026 event qualifying totals (r1+r2+r3, max 396).
+    // Compound women scores cluster around 130-131 per match.
+    seeding: [
+      { minScore: 262, seed: 1 },
+      { minScore: 261, seed: 2 },
+      { minScore: 260, seed: 3 },
+      { minScore: 0,   seed: 4 },
+    ],
+
+    // ── ROUNDS 1-3 ────────────────────────────────────────────────────────────
+    // R1 scores (winner totals from 1/16):
+    // Moore 131, McKee 129, Roner 130, Pearce 132,
+    // Gibson 130, Jäätma 132, Geissbuhler 129, Borgmeyer 130
     scores: {
-      // ── ROUND 1 (16→8) ─────────────────────────────────────────────────────────
-      // Compound archers score higher — ends in 30-33 range
-      r1: [
-        131, 124,  // Moore J v Flack R
-        129, 127,  // McKee B v Franchini I
-        130, 130,  // Roner E v Vennam JS     (SO: 10X T.11+ v 10X T.11 — Roner wins)
-        131, 132,  // Cox C v Pearce P        (Pearce wins)
-        130, 130,  // Gibson E v Di Nardo G   (SO: 10X T.11+ v 10X T.11 — Gibson wins)
-        130, 132,  // Fletcher G v Jäätma L   (Jäätma wins)
-        129, 130,  // Geissbuhler I v Gurney K (Gurney wins)
-        130, 128,  // Borgmeyer J v Ruiz A
-      ],
-      // ── ROUND 2 (8→4) ──────────────────────────────────────────────────────────
-      r2: [
-        130, 127,  // Moore J v McKee B
-        128, 127,  // Roner E v Pearce P
-        130, 129,  // Gibson E v Jäätma L
-        130, 132,  // Gurney K v Borgmeyer J  (Borgmeyer wins)
-      ],
-      // ── ROUND 3 (4→seeding) ────────────────────────────────────────────────────
-      r3: [
-        129, 126,  // Roner E v Moore J       (Roner wins — r3 match 1)
-        129, 117,  // Roner E v Gibson E — wait this must be a ladder match
-        // Corrected r3 (2 semifinal matches):
-        // Moore J v Gibson E → Moore wins? Or Gibson?
-        // Borgmeyer J v (other) → Borgmeyer advances
-        129, 127,  // Moore v Borgmeyer equivalent (approximate)
-        130, 129,  // Gibson v Gurney
-      ],
+      r1: [131, 129, 130, 132, 130, 132, 129, 130],
+      r2: [130, 128, 130, 132],
     },
 
+    // X count pools
+    xCounts: {
+      r1: [7, 8, 9, 9, 10, 10, 10, 11, 11, 12, 12],
+      r2: [8, 9, 9, 10, 10, 10, 11, 11, 12],
+      r3: [9, 10, 10, 10, 11, 11, 12],
+    },
+
+    // SO pool for rounds 1-3 (max 11)
+    so: [9, 10, 10, 11, 11, 11],
+
+    // ── LADDER ────────────────────────────────────────────────────────────────
+    // l4: Roner(#3) v Borgmeyer(#4) → Roner wins 129 v 127
+    // l3: Roner v Gibson(#2) → Roner wins 129 v 117
+    // l2: Roner v Moore(#1) → Roner wins 129 v 126 (championship)
     ladder: {
-      l8: {
-        scores: [130, 129, 128, 127],
-      },
-      l7: {
-        scores: [130, 129, 132, 128],
-      },
-      l6: {
-        scores: [129, 128, 130, 127],
-      },
-      l5: {
-        scores: [130, 129, 128, 127],
-      },
       l4: {
-        // Match 4 in bracket: Borgmeyer J 127 v Roner E 129 — Roner wins
-        scores: [129, 127],
+        scores: [127, 129],
         ends: {
-          129: [32, 32, 33, 32],  // Roner
-          127: [33, 32, 31, 31],  // Borgmeyer
+          127: [33, 32, 31, 31],
+          129: [32, 32, 33, 32],
         },
       },
       l3: {
-        // Match 2: Roner E 129 v Gibson E 117 — Roner wins
-        scores: [129, 117],
+        scores: [117, 129, 127],
         ends: {
-          129: [32, 33, 32, 32],  // Roner
-          117: [33, 31, 32, 21],  // Gibson
+          117: [32, 33, 32, 21],  // Gibson — collapsed end 4
+          129: [32, 33, 32, 32],
+          127: [33, 32, 31, 31],
         },
       },
       l2: {
-        // Match 1 (Championship): Roner E 129 v Moore J 126 — Roner wins
-        scores: [129, 126],
+        scores: [126, 129, 129],
         ends: {
-          129: [31, 33, 33, 32],  // Roner
           126: [31, 33, 31, 31],  // Moore
+          129: [31, 33, 33, 32],  // Roner
         },
       },
     },
 
-    so: [10, 10, 11, 11, 11],
-    ladderSo: [11, 11, 12, 12, 12],
+    // SO pool for ladder (max 12)
+    ladderSo: [10, 11, 11, 12, 12, 12],
 
   };
 }());
