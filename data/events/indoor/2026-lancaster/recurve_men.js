@@ -1,127 +1,99 @@
-// Lancaster Archery Academy (26LAC)
-// Lancaster (PA), 22-25 Jan 2026
-// 2026 Lancaster Archery Classic
-// Division: Olympic Recurve (Men)
+// 2026 Lancaster Archery Classic — Lancaster, PA · Jan 2026
+// Division: Olympic Recurve Men
 // Registers: window.DIV_2026_lancaster_recurve_men
 //
-// Rules: scoring: lancaster, arrowsPerEnd: 3, numEnds: 4
-//        maxArrowVal: 11 (qual) / 12 (ladder), soArrows: 1
-//
-// Final rank: 1 Ellison Brady (USA), 2 D'Amour Nicholas (USA),
-//             3 Gupta Devaang (IND), 4 Baek Joshua (USA)
-//
-// Championship SO: Ellison Brady 124 (5X T.9) v D'Amour 124 (T.10) — D'Amour wins?
-// Wait — Ellison is #1. Bracket shows "1 ELLISON Brady / D'AMOUR Nicholas 124/124 5X T.9 / T.10"
-// T.10 > T.9 in inner count, so D'Amour wins inner... but Ellison is ranked #1.
-// Lancaster SO at ladder level uses single arrow (max 12). T.9 and T.10 are inner 10 counts
-// across the match, NOT the SO arrow. The SO arrow decides the winner.
-// Ellison ranked #1 means Ellison won the championship. D'Amour is #2.
-// The 5X/T.9 vs T.10 notation may be the X count used for tiebreak before SO,
-// with SO arrow not shown. Ellison wins.
+// ── LANCASTER FORMAT NOTES ────────────────────────────────────────────────────
+// Rounds 1-3: cumulative total, 4 ends of 3 arrows, max arrow = 11, max match = 132
+// Tiebreak: most 11s wins. If equal → single arrow SO, max 11.
+// Ladder: 4 seeds only (smaller field than compound).
+// Ladder rungs: l4 (#4 v #3), l3 (winner v #2), l2 (winner v #1 — championship)
+// Ladder seeding based on accumulated r1+r2+r3 total.
 
 (function () {
   window.DIV_2026_lancaster_recurve_men = {
 
-    label: 'Olympic Recurve',
+    label: 'Olympic Recurve Men',
+    format: 'lancaster',
 
     rounds: [
-      { key: 'r1', label: 'Round 1',          sub: 'Qualifying' },
-      { key: 'r2', label: 'Round 2',          sub: 'Qualifying' },
-      { key: 'r3', label: 'Round 3',          sub: 'Qualifying' },
-      { key: 'l8', label: 'Ladder — Step 1',  sub: '#7 vs #8'   },
-      { key: 'l7', label: 'Ladder — Step 2',  sub: 'vs #6 Seed' },
-      { key: 'l6', label: 'Ladder — Step 3',  sub: 'vs #5 Seed' },
-      { key: 'l5', label: 'Ladder — Step 4',  sub: 'vs #4 Seed' },
-      { key: 'l4', label: 'Ladder — Step 5',  sub: 'vs #3 Seed' },
-      { key: 'l3', label: 'Ladder — Step 6',  sub: 'vs #2 Seed' },
-      { key: 'l2', label: 'Championship',      sub: 'vs #1 Seed' },
+      { key: 'r1', label: 'Round 1', sub: '1/32 Elimination' },
+      { key: 'r2', label: 'Round 2', sub: '1/16 Elimination' },
+      { key: 'r3', label: 'Round 3', sub: '1/8 Elimination'  },
+      { key: 'l4', label: '#4 vs #3',          sub: 'Step-up Ladder' },
+      { key: 'l3', label: 'Ladder vs #2',       sub: 'Step-up Ladder' },
+      { key: 'l2', label: 'Championship Match', sub: 'vs #1 Seed'     },
     ],
 
+    // ── LADDER SEEDING THRESHOLDS ─────────────────────────────────────────────
+    // Based on 2026 event qualifying totals (r1+r2+r3, max 396).
+    // Recurve scores are lower than compound — thresholds reflect that.
+    seeding: [
+      { minScore: 379, seed: 1 },
+      { minScore: 372, seed: 2 },
+      { minScore: 370, seed: 3 },
+      { minScore: 0,   seed: 4 },
+    ],
+
+    // ── ROUNDS 1-3 ────────────────────────────────────────────────────────────
+    // R1 scores: winner totals from 1/32 round
+    // D'Amour 127, Frangilli 128, Mandia 126, Baek 124, Poerio Piterà 122,
+    // Stoddard 121, Musolesi 121, Bakker 121, Ellison 122, Gupta 123,
+    // Williams 123, Tuttle 118, Post 120, Nespoli 118, Affleck 120, Mirich 117
     scores: {
-      // ── ROUND 1 (32→16) ────────────────────────────────────────────────────────
-      r1: [
-        121, 122,  // Musolesi v Downey     (Downey wins)
-        119, 120,  // Huey v Affleck        (Affleck wins)
-        121, 120,  // Bakker v Nasmyth      (Bakker wins)
-        114, 127,  // Nofel v D'Amour       (D'Amour wins)
-        126, 110,  // Mandia v Nielsen
-        117, 116,  // Mirich v Delbecque
-        124, 120,  // Baek v Boyd
-        114, 128,  // Wentzel v Frangilli   (Frangilli wins)
-        122, 117,  // Poerio Piterà v Sanchez
-        112, 118,  // McGlyn v Nespoli      (Nespoli wins)
-        118, 120,  // Cowles v Post         (Post wins)
-        117, 122,  // Kunnavakkam v Ellison (Ellison wins)
-        123, 116,  // Gupta v Accardo
-        113, 123,  // Pickering v Williams  (Williams wins)
-        121, 119,  // Stoddard v Wilson-Poyton
-        118, 118,  // Tuttle v Clements     (SO: 5X v 2X — Tuttle wins)
-      ],
-      // ── ROUND 2 (16→8) ─────────────────────────────────────────────────────────
-      r2: [
-        116, 116,  // Downey v Affleck      (SO: 4X v 3X — Downey wins)
-        123, 124,  // Bakker v D'Amour      (D'Amour wins)
-        122, 121,  // Mandia v Mirich
-        123, 120,  // Baek v Frangilli
-        121, 120,  // Poerio Piterà v Nespoli
-        118, 121,  // Post v Ellison        (Ellison wins)
-        123, 122,  // Gupta v Williams
-        125, 112,  // Stoddard v Tuttle
-      ],
-      // ── ROUND 3 (8→seeding) ────────────────────────────────────────────────────
-      r3: [
-        118, 128,  // Downey v D'Amour      (D'Amour wins)
-        120, 124,  // Mandia v Baek         (Baek wins)
-        123, 126,  // Poerio Piterà v Ellison (Ellison wins)
-        124, 116,  // Gupta v Stoddard
-      ],
+      r1: [127, 128, 126, 124, 122, 121, 121, 121,
+           122, 123, 123, 118, 120, 118, 120, 117],
+
+      // R2 scores: winner totals from 1/16 round
+      // D'Amour 128, Baek 124, Mandia 122, Mirich 121, Poerio Piterà 123,
+      // Ellison 126, Gupta 124, Stoddard 125
+      r2: [128, 124, 122, 121, 123, 126, 124, 125],
+
+      // R3 scores: winner totals from 1/8 round
+      // D'Amour 128, Baek 124, Ellison 126, Gupta 124
+      r3: [128, 124, 126, 124],
     },
 
+    // X count pools — fabricated, fill in manually from real data
+    xCounts: {
+      r1: [],
+      r2: [],
+      r3: [],
+    },
+
+    // SO pool for rounds 1-3 — no SO data in bracket, fill in manually
+    so: [],
+
+    // ── LADDER ────────────────────────────────────────────────────────────────
+    // l4: Gupta(#4) v Baek(#3) → Gupta wins 125 v 121
+    // l3: Gupta v Ellison(#2) → Ellison wins 123 v 107
+    // l2: Ellison v D'Amour(#1) → D'Amour wins 124 v 124 (SO T.10 v T.9)
     ladder: {
-      l8: {
-        // Stoddard C 125 v Tuttle M 112 (r2 match — used as l8 proxy)
-        // Exact l8 match not explicitly numbered; using available scores
-        scores: [125, 116, 124, 118],
-      },
-      l7: {
-        // Match order not explicitly numbered for recurve; using r3/ladder pool
-        scores: [124, 118, 123, 116],
-      },
-      l6: {
-        scores: [126, 123, 124, 120],
-      },
-      l5: {
-        scores: [124, 121, 126, 120],
-      },
       l4: {
-        // Poerio Piterà F 123 v Ellison B 126 (r3 match)
-        scores: [126, 123],
+        scores: [121, 125],
         ends: {
-          126: [30, 31, 32, 32],  // Ellison
-          123: [30, 31, 32, 30],  // Poerio Piterà
+          121: [31, 30, 29, 31],
+          125: [31, 32, 30, 32],
         },
       },
       l3: {
-        // Gupta D 107 v Ellison B 123 (numbered match 2 in bracket)
-        scores: [123, 107],
+        scores: [107, 123, 125],
         ends: {
-          123: [32, 32, 31, 28],  // Ellison
-          107: [28, 32, 25, 22],  // Gupta
+          107: [28, 32, 25, 22],
+          123: [32, 32, 31, 28],
+          125: [31, 32, 30, 32],
         },
       },
       l2: {
-        // Championship: Ellison B 124 v D'Amour N 124 — Ellison wins (SO)
-        // Numbered match 1 in bracket
-        scores: [124, 124],
+        scores: [124, 124, 123],
         ends: {
-          124: [30, 30, 32, 32],  // Ellison
-          124: [31, 31, 31, 31],  // D'Amour (same total, different ends)
+          124: [30, 30, 32, 32],  // D'Amour championship
+          123: [32, 32, 31, 28],  // Ellison from l3
         },
       },
     },
 
-    so: [9, 10, 10, 11, 11],
-    ladderSo: [10, 11, 11, 12, 12],
+    // SO pool for ladder — no SO data in bracket, fill in manually
+    ladderSo: [10,9],
 
   };
 }());
