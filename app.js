@@ -256,6 +256,24 @@ const DIVISION_CATALOGUE = {
 //   < 393     → seed 8
 
 function getLancasterSeed(totalScore, totalElevens) {
+  // Read seeding thresholds from the data file if present.
+  // Each tier: { minScore, seed, xMin (optional) }
+  // Tiers are checked top to bottom — first match wins.
+  // seed can be a number or array (random pick from array).
+  const seeding = state.data.seeding;
+  if (seeding && seeding.length > 0) {
+    for (const tier of seeding) {
+      if (totalScore >= tier.minScore) {
+        if (tier.xMin !== undefined && totalElevens < tier.xMin) continue;
+        return Array.isArray(tier.seed)
+          ? tier.seed[Math.floor(Math.random() * tier.seed.length)]
+          : tier.seed;
+      }
+    }
+    return 8; // fallback if nothing matched
+  }
+
+  // Legacy fallback — used if data file has no seeding block
   if (totalScore >= 396)                          return Math.random() < 0.5 ? 1 : 2;
   if (totalScore === 395)                         return 3;
   if (totalScore === 394)                         return 4;
@@ -431,6 +449,7 @@ function preflightEvents(bowType, category, callback) {
         .finally(() => {
           settled++;
           if (!resolved && settled === candidates.length) {
+            resolved = true;  // prevent any late-arriving success from double-decrementing
             eventAvailability[ev.id] = false;
             remaining--;
             if (remaining === 0) callback();
