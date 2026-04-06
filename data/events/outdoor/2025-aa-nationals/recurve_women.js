@@ -19,7 +19,7 @@
     rounds: [
       { key: 'r1', label: 'Round 1',   sub: '1/16 Elimination' },
       { key: 'r2', label: 'Round 2',   sub: '1/8 Elimination'  },
-      { key: 'r3', label: 'Round 4l3',   sub: 'Quarterfinal'     },
+      { key: 'r3', label: 'Round 3',   sub: 'Quarterfinal'     },
       { key: 'sf', label: 'Semifinal', sub: 'Top 4'            },
       { key: 'f',  label: 'Final',     sub: 'Gold Medal Match'  },
     ],
