@@ -8,7 +8,7 @@
 // Ladder (rounds 4-10): same structure BUT max arrow = 12, max match = 144.
 // Ladder SO: single arrow max 12, highest wins, 50/50 if tied.
 // Ladder seeding based on accumulated r1+r2+r3 total (max 396).
-// See app.js LANCASTER_SEEDING for threshold logic.
+// Thresholds defined in the seeding block below — app reads top to bottom.
 //
 // scores: pool of match totals drawn randomly for opponent.
 // ends:   per-end breakdowns are decomposed by app from match total.
@@ -33,6 +33,19 @@
       { key: 'l4', label: 'Ladder vs #3',      sub: 'Step-up Ladder' },
       { key: 'l3', label: 'Ladder vs #2',      sub: 'Step-up Ladder' },
       { key: 'l2', label: 'Championship Match', sub: 'vs #1 Seed'    },
+    ],
+
+    // ── LADDER SEEDING THRESHOLDS ─────────────────────────────────────────────
+    // Based on 2026 event qualifying scores (max 396 across 3 matches).
+    // Checked top to bottom — first matching tier wins.
+    // xMin: minimum 11-count required at that score tier (optional).
+    seeding: [
+      { minScore: 396, seed: [1, 2] },
+      { minScore: 395, seed: 3 },
+      { minScore: 394, seed: 4 },
+      { minScore: 393, xMin: 33, seed: [5, 6] },
+      { minScore: 393, seed: 7 },
+      { minScore: 0,   seed: 8 },
     ],
 
     // ── ROUNDS 1-3: max 132 ───────────────────────────────────────────────────
@@ -132,7 +145,7 @@
     },
 
     // SO pool for ladder (max 12)
-    ladderSo: [10, 11, 11, 12, 12, 12],
+    ladderSo: [11,11,11,11,10,10,10,9],
 
   };
 }());
