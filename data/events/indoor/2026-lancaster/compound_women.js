@@ -82,7 +82,7 @@
     },
 
     // SO pool for ladder (max 12)
-    ladderSo: [10, 11, 11, 12, 12, 12],
+    ladderSo: [11],
 
   };
 }());
