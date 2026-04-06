@@ -302,12 +302,29 @@ function getLancasterSeed(totalScore, totalElevens) {
 //   Seed 1 → waits at l2 (championship match)
 
 function ladderStartKey(seed) {
-  const map = { 1:'l2', 2:'l3', 3:'l4', 4:'l5', 5:'l6', 6:'l7', 7:'l8', 8:'l8' };
-  return map[seed] || 'l8';
+  // 8-seed ladder (compound open): seeds 1-8
+  const map8 = { 1:'l2', 2:'l3', 3:'l4', 4:'l5', 5:'l6', 6:'l7', 7:'l8', 8:'l8' };
+  // 4-seed ladder (recurve / compound women): seeds 1-4
+  const map4 = { 1:'l2', 2:'l3', 3:'l4', 4:'l4' };
+  // Detect which ladder size this event uses by checking which keys exist in rounds
+  const rounds = state.data.rounds;
+  const has8 = rounds.some(r => r.key === 'l8');
+  const map = has8 ? map8 : map4;
+  return map[seed] || (has8 ? 'l8' : 'l4');
 }
 
 // All ladder round keys in order (climber's path from bottom to top)
+// Full 8-seed ladder
+const LADDER_KEYS_8 = ['l8','l7','l6','l5','l4','l3','l2'];
+// 4-seed ladder
+const LADDER_KEYS_4 = ['l4','l3','l2'];
+// Combined — used for isLadderRound detection
 const LADDER_KEYS = ['l8','l7','l6','l5','l4','l3','l2'];
+
+function getLadderKeys() {
+  const rounds = state.data.rounds;
+  return rounds.some(r => r.key === 'l8') ? LADDER_KEYS_8 : LADDER_KEYS_4;
+}
 
 // ── FIELD ROUND-VARIABLE END COUNT ───────────────────────────────────────────
 // Field archery uses 6 ends in early rounds, 4 in semis/final.
@@ -921,7 +938,7 @@ function renderLancasterPlaying(main) {
       </div>
       <div style="text-align:right">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase">Cumulative</div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--gold)">${qualSoFar} / ${(state.roundIdx + 1) * 132}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--gold)">${qualSoFar} / ${(d.rounds.findIndex(r => isLadderRound(r.key))) * 132}</div>
       </div>
     </div>`;
   }
@@ -1032,9 +1049,9 @@ function resolveLancasterMatch(inLadder) {
 
   const d = state.data;
   const currentRound = d.rounds[state.roundIdx];
-  const r3Idx = 2;
+  const lastQualIdx = d.rounds.findIndex(r => isLadderRound(r.key)) - 1;
 
-  if (!inLadder && state.roundIdx === r3Idx) {
+  if (!inLadder && state.roundIdx === lastQualIdx) {
     state.lancasterSeed = getLancasterSeed(state.lancasterQualTotal, state.lancasterQualElevens);
     state.lancasterInLadder = true;
     state.phase = 'lancasterSeeded';
@@ -1328,8 +1345,8 @@ function soNext(won, isFinal) {
     if (!inLadder) {
       // Qualifying SO win — accumulate real end totals (not the bumped myPts)
       if (won) accumulateLancasterQual();
-      const r3Idx = 2;
-      if (won && state.roundIdx === r3Idx) {
+      const lastQualIdx = state.data.rounds.findIndex(r => isLadderRound(r.key)) - 1;
+      if (won && state.roundIdx === lastQualIdx) {
         state.lancasterSeed = getLancasterSeed(state.lancasterQualTotal, state.lancasterQualElevens);
         state.lancasterInLadder = true;
         state.phase = 'lancasterSeeded';
@@ -1345,8 +1362,9 @@ function soNext(won, isFinal) {
       if (currentKey === 'l2') {
         state.phase = 'gold';
       } else {
-        const currentLadderIdx = LADDER_KEYS.indexOf(currentKey);
-        const nextKey = LADDER_KEYS[currentLadderIdx + 1];
+        const ladderKeys = getLadderKeys();
+        const currentLadderIdx = ladderKeys.indexOf(currentKey);
+        const nextKey = ladderKeys[currentLadderIdx + 1];
         if (!nextKey) {
           state.phase = 'gold';
         } else {
@@ -1424,8 +1442,9 @@ function matchNext(won) {
     const currentKey = state.data.rounds[state.roundIdx].key;
     if (currentKey === 'l2') { state.phase = 'gold'; render(); return; }
     // Find next ladder rung
-    const currentLadderIdx = LADDER_KEYS.indexOf(currentKey);
-    const nextKey = LADDER_KEYS[currentLadderIdx + 1];
+    const ladderKeys = getLadderKeys();
+    const currentLadderIdx = ladderKeys.indexOf(currentKey);
+    const nextKey = ladderKeys[currentLadderIdx + 1];
     if (!nextKey) { state.phase = 'gold'; render(); return; }
     const nextRoundIdx = state.data.rounds.findIndex(r => r.key === nextKey);
     if (nextRoundIdx === -1) { state.phase = 'gold'; render(); return; }
