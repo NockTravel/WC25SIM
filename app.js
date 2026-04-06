@@ -5,7 +5,7 @@
 // ── DIVISION RULES ────────────────────────────────────────────────────────────
 // Single source of truth for all game logic parameters.
 // scoring:      'sets'  → set-point system (recurve / barebow)
-//               'total' → cumulative score (compound)
+//               'total' → cumulative score (compound) 
 //               'lancaster' → Lancaster-specific format
 // arrowsPerEnd: arrows shot per set or end
 // numEnds:      total sets or ends in a match
