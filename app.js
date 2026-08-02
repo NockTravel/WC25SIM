@@ -358,6 +358,82 @@ let eventAvailability = {}; // { 'eventId': true|false } populated after preflig
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 let state = null;
 
+// ── SAVE / RESUME ────────────────────────────────────────────────────────────
+const SAVE_KEY = 'archery_sim_save';
+
+// Terminal phases — no point saving these (tournament is over)
+const TERMINAL_PHASES = ['gold', 'silver', 'eliminated', 'bronzeResult'];
+
+function saveGame() {
+  try {
+    if (!state || TERMINAL_PHASES.includes(state.phase)) { clearSave(); return; }
+    const save = {
+      nav: {
+        bowType:  navBowType,
+        category: navCategory,
+        div:      navDiv,
+        eventId:  navEvent ? navEvent.id : null,
+      },
+      // Everything except data (loaded from file) and rules (derived)
+      gameState: Object.assign({}, state, { data: undefined, rules: undefined }),
+      ts: Date.now(),
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  } catch (e) { /* quota or private mode — silently skip */ }
+}
+
+function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+}
+
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const save = JSON.parse(raw);
+    // Basic validity check
+    if (!save || !save.nav || !save.nav.eventId || !save.gameState) return null;
+    return save;
+  } catch (e) { return null; }
+}
+
+function resumeGame() {
+  const save = loadSave();
+  if (!save) { clearSave(); render(); return; }
+
+  const n = save.nav;
+  navBowType  = n.bowType;
+  navCategory = n.category;
+  navDiv      = n.div;
+
+  // Find the event object from the manifest
+  const m = window.EVENT_MANIFEST;
+  if (!m || !m[n.category]) { clearSave(); render(); return; }
+  const cat = m[n.category];
+  navEvent = cat.events.find(e => e.id === n.eventId);
+  if (!navEvent) { clearSave(); render(); return; }
+
+  // Show loading while we reload the data file
+  const main = $('main');
+  main.innerHTML = `<div class="checking-indicator" style="justify-content:center;padding:48px 20px"><div class="spinner"></div>Resuming…</div>`;
+
+  const divKey = effectiveDivKey(navDiv);
+  loadDivision(navEvent, divKey, (data) => {
+    if (!data) { clearSave(); goHome(); return; }
+
+    const rules = getRules(divKey);
+    // Restore the full state, re-attaching the non-serialisable parts
+    state = Object.assign({}, save.gameState, { data, rules });
+    clearSave(); // clear so a crash during play triggers a fresh prompt next time
+    render();
+  });
+}
+
+function dismissResume() {
+  clearSave();
+  render();
+}
+
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
 
@@ -520,6 +596,11 @@ function render() {
   if (!main) return;
 
   if (!state) {
+    // Check for a saved game before showing the home screen
+    if (!navBowType && !navDiv && !navCategory && !navEvent) {
+      const save = loadSave();
+      if (save) { renderResumePrompt(main, save); return; }
+    }
     if (!navBowType)  { renderBowTypePicker(main); return; }
     if (!navDiv)      { renderDivisionPicker(main); return; }
     if (!navCategory) { renderDisciplinePicker(main); return; }
@@ -527,6 +608,9 @@ function render() {
     renderConfirmStart(main);
     return;
   }
+
+  // Auto-save after every render while a game is in progress
+  saveGame();
 
   switch (state.phase) {
     case 'playing':          renderPlaying(main);          break;
@@ -540,6 +624,35 @@ function render() {
     case 'gold':             renderMedal('gold', main);    break;
     case 'eliminated':       renderEliminated(main);       break;
   }
+}
+
+// ── RESUME PROMPT ─────────────────────────────────────────────────────────────
+function renderResumePrompt(main, save) {
+  const n = save.nav;
+  const m = window.EVENT_MANIFEST;
+  let eventLabel = n.eventId || 'Unknown event';
+  let divLabel = getDivisionLabel(n.div);
+  if (m && m[n.category]) {
+    const ev = m[n.category].events.find(e => e.id === n.eventId);
+    if (ev) eventLabel = ev.label;
+  }
+  const age = Date.now() - (save.ts || 0);
+  const mins = Math.floor(age / 60000);
+  const timeAgo = mins < 1 ? 'Just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
+  const phase = save.gameState.phase || '';
+  const roundIdx = save.gameState.roundIdx || 0;
+
+  main.innerHTML = `
+    <div style="text-align:center;padding:40px 20px 24px;">
+      <div style="font-size:40px;margin-bottom:12px;">⏸</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text);margin-bottom:12px;">Game in Progress</div>
+      <div style="font-family:'Barlow',sans-serif;font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:24px;">
+        <strong style="color:var(--text)">${eventLabel}</strong><br>
+        ${divLabel} · Round ${roundIdx + 1} · ${timeAgo}
+      </div>
+      <button class="start-btn" onclick="resumeGame()">Resume →</button>
+      <button class="next-btn" style="background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:8px;" onclick="dismissResume()">Start new game</button>
+    </div>`;
 }
 
 // ── BOW TYPE PICKER ───────────────────────────────────────────────────────────
@@ -1961,6 +2074,7 @@ function roundBanner(round, idx, total) {
 
 // ── NAVIGATION HELPERS ────────────────────────────────────────────────────────
 function goHome() {
+  clearSave();
   state = null;
   navDiv = null;
   navBowType = null;
@@ -1971,6 +2085,7 @@ function goHome() {
 }
 
 function restartSame() {
+  clearSave();
   const div = state ? state.div : navDiv;
   const ev  = navEvent;
   // navCategory must be preserved so effectiveDivKey translates correctly for field
