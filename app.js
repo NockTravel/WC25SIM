@@ -1,5 +1,5 @@
 // ── ARCHERY TOURNAMENT SIMULATOR ─────────────────────────────────────────────
-// app.js — Build 3.1: Lancaster Archery Classic format
+// app.js — Build 3.2: Lancaster Archery Classic format
 // Rules are hardcoded in DIVISION_RULES below. Data files only supply scores.
 //
 // 3.1 fixes:
@@ -11,6 +11,13 @@
 //    (seed 7 opens vs #8; seeds 2–6 wait for the climber).
 //  - Lancaster last-qualifying-round checks no longer hardcode round index 2.
 //  - Team shoot-off reveal scores/displays opponent X as 10 / "X".
+//
+// 3.2 save / resume:
+//  - Progress also saved whenever the app is backgrounded (visibilitychange / pagehide).
+//  - A failed data load on resume no longer deletes the save — offers "Try again".
+//  - Resume is a pop-up over the home screen showing exactly where you were.
+//  - "← Divisions" during a tournament asks for confirmation before discarding.
+//  - Requests persistent storage so the browser is less likely to evict it.
 
 // ── DIVISION RULES ────────────────────────────────────────────────────────────
 // Single source of truth for all game logic parameters.
@@ -411,16 +418,25 @@ const SAVE_KEY = 'archery_sim_save';
 // Terminal phases — no point saving these (tournament is over)
 const TERMINAL_PHASES = ['gold', 'silver', 'eliminated', 'bronzeResult'];
 
+// The save is written after every render (i.e. every arrow tapped) and again
+// whenever the page is hidden, so a phone killing the tab in the background
+// loses nothing. It is only deleted when the tournament ends, when the player
+// confirms they want to leave, or when they choose "Start new game".
+let resumeOffered = false;   // only offer the resume pop-up once per page load
+
 function saveGame() {
   try {
-    if (!state || TERMINAL_PHASES.includes(state.phase)) { clearSave(); return; }
+    if (!state) return;   // never touch an existing save from the menus
+    if (TERMINAL_PHASES.includes(state.phase)) { clearSave(); return; }
     const save = {
+      v: 2,
       nav: {
         bowType:  navBowType,
         category: navCategory,
         div:      navDiv,
         eventId:  navEvent ? navEvent.id : null,
       },
+      summary: describeProgress(),
       // Everything except data (loaded from file) and rules (derived)
       gameState: Object.assign({}, state, { data: undefined, rules: undefined }),
       ts: Date.now(),
@@ -444,21 +460,54 @@ function loadSave() {
   } catch (e) { return null; }
 }
 
+// Short human-readable description of where the player is, shown on resume.
+function describeProgress() {
+  try {
+    if (!state || !state.data) return '';
+    if (state.inBronze) return state.phase === 'shootoff' ? 'Bronze Final · Shoot-off' : 'Bronze Final';
+    const round = state.data.rounds[state.roundIdx];
+    if (!round) return '';
+    if (state.phase === 'lancasterSeeded') return `Qualifying complete · Seed #${state.lancasterSeed}`;
+
+    let s = round.label;
+    if (state.isLancaster && state.lancasterSeed && isLadderRound(round.key)) {
+      s += ` · #${state.lancasterSeed} v #${ladderOpponentForRung(round.key, state.lancasterSeed)}`;
+    }
+    if (state.phase === 'shootoff') return s + ' · Shoot-off';
+    if (state.phase === 'playing') {
+      const isSet = state.rules && state.rules.scoring === 'sets';
+      const done = isSet ? state.myScores.length : state.myEnds.length;
+      s += ` · ${isSet ? 'Set' : 'End'} ${done + 1} of ${currentNumEnds()}`;
+    }
+    return s;
+  } catch (e) { return ''; }
+}
+
 function resumeGame() {
   const save = loadSave();
-  if (!save) { clearSave(); render(); return; }
+  if (!save) { render(); return; }
 
   const n = save.nav;
-  navBowType  = n.bowType;
-  navCategory = n.category;
-  navDiv      = n.div;
 
   // Find the event object from the manifest
   const m = window.EVENT_MANIFEST;
-  if (!m || !m[n.category]) { clearSave(); render(); return; }
-  const cat = m[n.category];
-  navEvent = cat.events.find(e => e.id === n.eventId);
-  if (!navEvent) { clearSave(); render(); return; }
+  const cat = m && m[n.category];
+  const ev  = cat && cat.events.find(e => e.id === n.eventId);
+  if (!ev) {
+    // Event no longer exists in the manifest — the save can never be restored
+    clearSave();
+    showModal({
+      icon: '⚠️', title: 'Tournament unavailable',
+      body: 'That event is no longer available, so the saved game could not be restored.',
+      primary: { label: 'OK', fn: () => {} },
+    });
+    return;
+  }
+
+  navBowType  = n.bowType;
+  navCategory = n.category;
+  navDiv      = n.div;
+  navEvent    = ev;
 
   // Show loading while we reload the data file
   const main = $('main');
@@ -466,13 +515,23 @@ function resumeGame() {
 
   const divKey = effectiveDivKey(navDiv);
   loadDivision(navEvent, divKey, (data) => {
-    if (!data) { clearSave(); goHome(); return; }
+    if (!data) {
+      // Usually a dropped/slow connection. KEEP the save and let them retry.
+      navBowType = navCategory = navDiv = navEvent = null;
+      render();
+      showModal({
+        icon: '📶', title: 'Couldn’t load your tournament',
+        body: 'Check your connection and try again. Your progress is still saved.',
+        primary:   { label: 'Try again →', fn: resumeGame },
+        secondary: { label: 'Start new game', fn: dismissResume },
+      });
+      return;
+    }
 
     const rules = getRules(divKey);
     // Restore the full state, re-attaching the non-serialisable parts
     state = Object.assign({}, save.gameState, { data, rules });
-    clearSave(); // clear so a crash during play triggers a fresh prompt next time
-    render();
+    render();   // render() re-saves immediately
   });
 }
 
@@ -480,6 +539,89 @@ function dismissResume() {
   clearSave();
   render();
 }
+
+function timeAgo(ts) {
+  const mins = Math.floor((Date.now() - (ts || 0)) / 60000);
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+function showResumeModal(save) {
+  const n = save.nav;
+  const m = window.EVENT_MANIFEST;
+  let eventLabel = n.eventId || 'Unknown event';
+  if (m && m[n.category]) {
+    const ev = m[n.category].events.find(e => e.id === n.eventId);
+    if (ev) eventLabel = ev.label;
+  }
+  const divLabel = getDivisionLabel(n.div);
+  const where = save.summary || `Round ${(save.gameState.roundIdx || 0) + 1}`;
+
+  showModal({
+    icon: '⏸', title: 'Resume your tournament?',
+    body: `<strong>${eventLabel}</strong><br>${divLabel}<br>${where}<br><span class="modal-meta">Saved ${timeAgo(save.ts)}</span>`,
+    primary:   { label: 'Resume →', fn: resumeGame },
+    secondary: { label: 'Start from the beginning', fn: dismissResume },
+  });
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+// Simple pop-up: { icon, title, body (html), primary {label, fn}, secondary {label, fn} }
+function showModal(opts) {
+  closeModal();
+  const el = document.createElement('div');
+  el.id = 'modal';
+  el.className = 'modal-backdrop';
+  el.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      ${opts.icon ? `<div class="modal-icon">${opts.icon}</div>` : ''}
+      <div class="modal-title" id="modal-title">${opts.title}</div>
+      <div class="modal-body">${opts.body || ''}</div>
+      <button class="start-btn" id="modal-primary">${opts.primary.label}</button>
+      ${opts.secondary ? `<button class="next-btn modal-secondary" id="modal-secondary">${opts.secondary.label}</button>` : ''}
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#modal-primary').onclick = () => { closeModal(); opts.primary.fn(); };
+  if (opts.secondary) {
+    el.querySelector('#modal-secondary').onclick = () => { closeModal(); opts.secondary.fn(); };
+  }
+}
+
+function closeModal() {
+  const m = document.getElementById('modal');
+  if (m) m.remove();
+}
+
+// Leaving mid-tournament asks first; finished tournaments just go home.
+function confirmLeave() {
+  if (!state || TERMINAL_PHASES.includes(state.phase)) { goHome(); return; }
+  showModal({
+    icon: '🏹', title: 'Leave this tournament?',
+    body: 'Your progress in this tournament will be lost.',
+    primary:   { label: 'Keep playing', fn: () => {} },
+    secondary: { label: 'Leave tournament', fn: goHome },
+  });
+}
+
+// Ask the browser not to evict our storage under memory/storage pressure.
+// Supported on Chrome/Android and recent Safari; harmless elsewhere.
+function requestPersistentStorage() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+  } catch (e) {}
+}
+
+// Belt and braces: save the moment the app is backgrounded or closed.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveGame();
+});
+window.addEventListener('pagehide', saveGame);
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
@@ -644,9 +786,11 @@ function render() {
 
   if (!state) {
     // Check for a saved game before showing the home screen
-    if (!navBowType && !navDiv && !navCategory && !navEvent) {
+    // Show the home screen, with a resume pop-up over it (once per page load)
+    if (!resumeOffered && !navBowType && !navDiv && !navCategory && !navEvent) {
+      resumeOffered = true;
       const save = loadSave();
-      if (save) { renderResumePrompt(main, save); return; }
+      if (save) { renderBowTypePicker(main); showResumeModal(save); return; }
     }
     if (!navBowType)  { renderBowTypePicker(main); return; }
     if (!navDiv)      { renderDivisionPicker(main); return; }
@@ -671,35 +815,6 @@ function render() {
     case 'gold':             renderMedal('gold', main);    break;
     case 'eliminated':       renderEliminated(main);       break;
   }
-}
-
-// ── RESUME PROMPT ─────────────────────────────────────────────────────────────
-function renderResumePrompt(main, save) {
-  const n = save.nav;
-  const m = window.EVENT_MANIFEST;
-  let eventLabel = n.eventId || 'Unknown event';
-  let divLabel = getDivisionLabel(n.div);
-  if (m && m[n.category]) {
-    const ev = m[n.category].events.find(e => e.id === n.eventId);
-    if (ev) eventLabel = ev.label;
-  }
-  const age = Date.now() - (save.ts || 0);
-  const mins = Math.floor(age / 60000);
-  const timeAgo = mins < 1 ? 'Just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
-  const phase = save.gameState.phase || '';
-  const roundIdx = save.gameState.roundIdx || 0;
-
-  main.innerHTML = `
-    <div style="text-align:center;padding:40px 20px 24px;">
-      <div style="font-size:40px;margin-bottom:12px;">⏸</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:var(--text);margin-bottom:12px;">Game in Progress</div>
-      <div style="font-family:'Barlow',sans-serif;font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:24px;">
-        <strong style="color:var(--text)">${eventLabel}</strong><br>
-        ${divLabel} · Round ${roundIdx + 1} · ${timeAgo}
-      </div>
-      <button class="start-btn" onclick="resumeGame()">Resume →</button>
-      <button class="next-btn" style="background:transparent;border:1px solid var(--border);color:var(--muted);margin-top:8px;" onclick="dismissResume()">Start new game</button>
-    </div>`;
 }
 
 // ── BOW TYPE PICKER ───────────────────────────────────────────────────────────
@@ -853,6 +968,7 @@ function getDivisionLabel(divKey) {
 
 // ── START TOURNAMENT ──────────────────────────────────────────────────────────
 function startTournament() {
+  requestPersistentStorage();
   const main = $('main');
   main.innerHTML = `<div class="checking-indicator" style="justify-content:center;padding:48px 20px"><div class="spinner"></div>Loading…</div>`;
 
@@ -1453,7 +1569,7 @@ function renderSOReveal(main) {
   // Bronze SO resolves directly — no round advancement logic needed
   if (state.inBronze) {
     const nextLabel = won ? 'Collect your Bronze →' : 'See final standings →';
-    let html = `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+    let html = backBtn();
     html += `<div class="round-banner">
       <div><div class="round-name" style="color:rgba(180,120,30,0.9)">Bronze Final</div><div class="round-sub">Shoot-off</div></div>
     </div>`;
@@ -1677,7 +1793,7 @@ function initBronze() {
 function renderBronze(main) {
   const rules = state.rules;
   const isSet = rules.scoring === 'sets';
-  let html = `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+  let html = backBtn();
   html += `<div class="round-banner">
     <div>
       <div class="round-name" style="color:rgba(180,120,30,0.9)">Bronze Final</div>
@@ -2123,7 +2239,7 @@ function buildHistory() {
 
 // ── SHARED UI HELPERS ─────────────────────────────────────────────────────────
 function backBtn() {
-  return `<button class="back-btn" onclick="goHome()">← Divisions</button>`;
+  return `<button class="back-btn" onclick="confirmLeave()">← Divisions</button>`;
 }
 
 function roundBanner(round, idx, total) {
