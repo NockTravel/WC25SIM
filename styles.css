@@ -684,3 +684,71 @@ html, body {
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
 }
+/* ── MODAL (resume / leave confirmation) ───────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  background: rgba(0,0,0,0.7);
+  animation: modal-fade 0.15s ease-out;
+}
+
+.modal {
+  width: 100%;
+  max-width: 400px;
+  background: var(--panel);
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 28px 0 20px;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  animation: modal-rise 0.18s ease-out;
+}
+
+.modal-icon {
+  font-size: 36px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.modal-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  padding: 0 20px;
+  margin-bottom: 10px;
+}
+
+.modal-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  padding: 0 20px;
+  margin-bottom: 22px;
+}
+.modal-body strong { color: var(--text); }
+
+.modal-meta {
+  display: inline-block;
+  margin-top: 6px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.modal .next-btn.modal-secondary {
+  background: transparent;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
