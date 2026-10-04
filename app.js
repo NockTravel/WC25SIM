@@ -1,6 +1,16 @@
 // ── ARCHERY TOURNAMENT SIMULATOR ─────────────────────────────────────────────
-// app.js — Build 3: Lancaster Archery Classic format
+// app.js — Build 3.1: Lancaster Archery Classic format
 // Rules are hardcoded in DIVISION_RULES below. Data files only supply scores.
+//
+// 3.1 fixes:
+//  - Bronze final (total-score divisions) now goes to a shoot-off on a tie
+//    instead of awarding bronze on equal totals.
+//  - Bronze final uses the final's end count (field: 4 ends, not 6) for
+//    match length, opponent ends and the scoreboard.
+//  - Lancaster seeding screen states the correct first opponent
+//    (seed 7 opens vs #8; seeds 2–6 wait for the climber).
+//  - Lancaster last-qualifying-round checks no longer hardcode round index 2.
+//  - Team shoot-off reveal scores/displays opponent X as 10 / "X".
 
 // ── DIVISION RULES ────────────────────────────────────────────────────────────
 // Single source of truth for all game logic parameters.
@@ -299,15 +309,16 @@ function getLancasterSeed(totalScore, totalElevens) {
 // l3: winner v #2
 // l2: winner v #1  (championship match)
 //
-// Player's entry point depends on seed:
+// Player's entry point depends on seed (no waiting — the player's first
+// opponent is the seed directly below them, or #7 for the 8th seed):
 //   Seed 8 → starts at l8 (plays #7)
 //   Seed 7 → starts at l8 (plays #8)
-//   Seed 6 → waits at l7 (plays winner of l8)
-//   Seed 5 → waits at l6
-//   Seed 4 → waits at l5
-//   Seed 3 → waits at l4
-//   Seed 2 → waits at l3
-//   Seed 1 → waits at l2 (championship match)
+//   Seed 6 → starts at l7 (plays #7)
+//   Seed 5 → starts at l6 (plays #6)
+//   Seed 4 → starts at l5 (plays #5)
+//   Seed 3 → starts at l4 (plays #4)
+//   Seed 2 → starts at l3 (plays #3)
+//   Seed 1 → starts at l2 (plays #2, championship match)
 
 function ladderStartKey(seed) {
   // 8-seed ladder (compound open): seeds 1-8
@@ -319,6 +330,42 @@ function ladderStartKey(seed) {
   const has8 = rounds.some(r => r.key === 'l8');
   const map = has8 ? map8 : map4;
   return map[seed] || (has8 ? 'l8' : 'l4');
+}
+
+// Number of seeds in this event's ladder (8 or 4)
+function ladderSize() {
+  return state.data.rounds.some(r => r.key === 'l8') ? 8 : 4;
+}
+
+// Single-player ladder: the player never waits on other matches, they just
+// play whoever makes sense for each rung.
+// Rung lN is "held" by seed N-1 (l8 → #7, l7 → #6 ... l2 → #1).
+//   - If the player holds that rung (their entry rung), they face the seed
+//     directly below: #N.  (#7 v #8, #6 v #7 ... #1 v #2)
+//   - Otherwise the player is climbing, and faces the holder: #N-1.
+//     (#8 enters v #7, then #6, #5 ... #1)
+function ladderOpponentForRung(roundKey, playerSeed) {
+  const n = parseInt(roundKey.slice(1), 10);
+  const holder = n - 1;
+  return playerSeed === holder ? n : holder;
+}
+
+function ladderOpponentSeed(seed) {
+  return ladderOpponentForRung(ladderStartKey(seed), seed);
+}
+
+function ladderEntryText(seed) {
+  const opp = ladderOpponentSeed(seed);
+  if (seed === 1) {
+    return {
+      line: `You are the top seed — you go straight into the championship match against seed #${opp}.`,
+      btn:  `Championship Match vs #${opp} →`,
+    };
+  }
+  return {
+    line: `You enter the ladder against seed #${opp}.`,
+    btn:  `Begin Ladder vs #${opp} →`,
+  };
 }
 
 // All ladder round keys in order (climber's path from bottom to top)
@@ -956,6 +1003,26 @@ function checkSetMatchEnd(rules, pool) {
   }
 }
 
+// Sets up the opponent's shoot-off for total-score matches (main draw or bronze).
+function setupTotalShootoff() {
+  const rules = state.rules;
+  const soPool = state.data.so;
+  if (rules.soArrows === 1) {
+    // Individual SO — set soOppRaw from a flat pool
+    state.soOppRaw = rand(soPool && !Array.isArray(soPool[0]) ? soPool : [Math.round(rules.soMaxVal * 0.8), rules.soMaxVal - 1, rules.soMaxVal - 1, rules.soMaxVal]);
+  } else if (soPool && Array.isArray(soPool[0])) {
+    // Multi-arrow team SO — draw a pair/triple from pool of arrays
+    state.soOppArrows = rand(soPool);
+  } else {
+    // Multi-arrow fallback
+    const maxV = rules.soMaxVal || 10;
+    const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2, maxV-1, maxV-1, maxV, maxV];
+    state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand(fallbackPool));
+  }
+  state.arrows = [];
+  state.phase = 'shootoff';
+}
+
 function submitEnd(arrows, total, round) {
   const rules = state.rules;
   if (!state.oppMatchEnds) {
@@ -969,21 +1036,7 @@ function submitEnd(arrows, total, round) {
     state.myPts = state.myEnds.reduce((s, v) => s + v.total, 0);
     state.oppPts = state.oppEnds.reduce((s, v) => s + v.total, 0);
     if (state.myPts === state.oppPts) {
-      const soPool = state.data.so;
-      if (rules.soArrows === 1) {
-        // Individual SO — set soOppRaw from a flat pool
-        state.soOppRaw = rand(soPool && !Array.isArray(soPool[0]) ? soPool : [Math.round(rules.soMaxVal * 0.8), rules.soMaxVal - 1, rules.soMaxVal - 1, rules.soMaxVal]);
-      } else if (soPool && Array.isArray(soPool[0])) {
-        // Multi-arrow team SO — draw a pair/triple from pool of arrays
-        state.soOppArrows = rand(soPool);
-      } else {
-        // Multi-arrow fallback
-        const maxV = rules.soMaxVal || 10;
-        const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2, maxV-1, maxV-1, maxV, maxV];
-        state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand(fallbackPool));
-      }
-      state.arrows = [];
-      state.phase = 'shootoff';
+      setupTotalShootoff();
     } else {
       resolveMatchEnd();
     }
@@ -1026,6 +1079,11 @@ function isLadderRound(roundKey) {
   return LADDER_KEYS.includes(roundKey);
 }
 
+// Index of the last qualifying round (the round before the first ladder round)
+function lastQualIdx() {
+  return state.data.rounds.findIndex(r => isLadderRound(r.key)) - 1;
+}
+
 function lancasterMaxArrow() {
   // Ladder rounds use max 12, qualifying rounds use max 11
   const round = state.data.rounds[state.roundIdx];
@@ -1047,7 +1105,7 @@ function renderLancasterPlaying(main) {
         <div class="round-sub">${round.sub}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase">Seed #${state.lancasterSeed}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase">#${state.lancasterSeed} v #${ladderOpponentForRung(round.key, state.lancasterSeed)}</div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--gold)">Qual: ${state.lancasterQualTotal}</div>
       </div>
     </div>`;
@@ -1164,16 +1222,16 @@ function resolveLancasterMatch(inLadder) {
 
   saveHistory(won, false);
 
+  const d = state.data;
+  const currentRound = d.rounds[state.roundIdx];
+
   if (!won) {
-    state.phase = 'eliminated';
+    // Losing the championship match (l2) is runner-up, not elimination
+    state.phase = (inLadder && currentRound.key === 'l2') ? 'silver' : 'eliminated';
     return;
   }
 
-  const d = state.data;
-  const currentRound = d.rounds[state.roundIdx];
-  const lastQualIdx = d.rounds.findIndex(r => isLadderRound(r.key)) - 1;
-
-  if (!inLadder && state.roundIdx === lastQualIdx) {
+  if (!inLadder && state.roundIdx === lastQualIdx()) {
     state.lancasterSeed = getLancasterSeed(state.lancasterQualTotal, state.lancasterQualElevens);
     state.lancasterInLadder = true;
     state.phase = 'lancasterSeeded';
@@ -1198,8 +1256,7 @@ function renderLancasterSeeded(main) {
   const elevens = state.lancasterQualElevens;
 
   const seedLabel = seed <= 2 ? `#${seed} (Top 2)` : `#${seed}`;
-  const firstLadderKey = ladderStartKey(seed);
-  const firstLadderRound = state.data.rounds.find(r => r.key === firstLadderKey);
+  const entry = ladderEntryText(seed);
 
   main.innerHTML = `
     <div class="result-screen" style="border-color:var(--border-bright);background:var(--gold-dim);">
@@ -1211,12 +1268,10 @@ function renderLancasterSeeded(main) {
         <br><br>
         You are seeded <strong style="color:var(--gold)">${seedLabel}</strong>
         <br>
-        ${seed === 1
-          ? 'You are the top seed — you wait for the challenger.'
-          : `You enter the ladder against seed #${seed - 1}`}
+        ${entry.line}
       </div>
     </div>
-    <button class="next-btn" onclick="enterLancasterLadder()">${seed === 1 ? 'Wait for challenger →' : `Begin Ladder vs #${seed - 1} →`}</button>`;
+    <button class="next-btn" onclick="enterLancasterLadder()">${entry.btn}</button>`;
 }
 
 function enterLancasterLadder() {
@@ -1243,6 +1298,25 @@ function advanceLancasterToRound(roundIdx) {
   state.arrowTarget = state.rules.arrowsPerEnd;
 }
 
+// Next-button label/action after a Lancaster match is won or lost
+function lancasterNextButton(round, won, fnName) {
+  const inLadder = isLadderRound(round.key);
+  if (!won) {
+    return { label: 'View your run →', fn: `${fnName}(false${fnName === 'soNext' ? ',false' : ''})` };
+  }
+  if (!inLadder && state.roundIdx === lastQualIdx()) {
+    return { label: 'See your seeding →', fn: `${fnName}(true${fnName === 'soNext' ? ',false' : ''})` };
+  }
+  if (!inLadder) {
+    const next = state.data.rounds[state.roundIdx + 1];
+    return { label: `Advance to ${next ? next.label : 'next round'} →`, fn: `${fnName}(true${fnName === 'soNext' ? ',false' : ''})` };
+  }
+  if (round.key === 'l2') {
+    return { label: 'Claim the title →', fn: `${fnName}(true${fnName === 'soNext' ? ',true' : ''})` };
+  }
+  return { label: 'Advance to next rung →', fn: `${fnName}(true${fnName === 'soNext' ? ',false' : ''})` };
+}
+
 // ── SHOOT-OFF ─────────────────────────────────────────────────────────────────
 function renderShootoff(main) {
   const d = state.data;
@@ -1251,7 +1325,13 @@ function renderShootoff(main) {
   const isSet = rules.scoring === 'sets';
 
   let html = backBtn();
-  html += roundBanner(round, state.roundIdx, d.rounds.length);
+  if (state.inBronze) {
+    html += `<div class="round-banner">
+      <div><div class="round-name" style="color:rgba(180,120,30,0.9)">Bronze Final</div><div class="round-sub">Shoot-off</div></div>
+    </div>`;
+  } else {
+    html += roundBanner(round, state.roundIdx, d.rounds.length);
+  }
   html += isSet ? buildSetBoard() : buildTotalBoard();
   html += buildArrowZone(true);
   html += buildHistory();
@@ -1326,6 +1406,7 @@ function confirmSO() {
   state.phase = 'soReveal';
   render();
 }
+
 function renderSOReveal(main) {
   const d = state.data;
   const rules = state.rules;
@@ -1351,9 +1432,9 @@ function renderSOReveal(main) {
     </div>`;
   } else {
     const myT  = state.soMyArrows.reduce((s, v) => s + arrowScore(v), 0);
-    const oppT = state.soOppArrows.reduce((s, v) => s + v, 0);
+    const oppT = state.soOppArrows.reduce((s, v) => s + arrowScore(v), 0);
     const myPips  = state.soMyArrows.map(v => `<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
-    const oppPips = state.soOppArrows.map(v => `<span class="so-arrow-pip">${v}</span>`).join('');
+    const oppPips = state.soOppArrows.map(v => `<span class="so-arrow-pip">${arrowDisplayStr(v)}</span>`).join('');
     soHtml = `<div class="so-reveal">
       <div class="so-col">
         <div class="so-val" style="color:var(--muted)">${oppT}</div>
@@ -1396,18 +1477,7 @@ function renderSOReveal(main) {
 
   // Lancaster SO next button
   if (state.isLancaster) {
-    const inLadder = isLadderRound(round.key);
-    let nextLabel, nextFn;
-    if (!won) {
-      nextLabel = 'View your run →'; nextFn = `soNext(false,false)`;
-    } else if (!inLadder && state.roundIdx === 2) {
-      nextLabel = 'See your seeding →'; nextFn = `soNext(true,false)`;
-    } else if (inLadder && round.key === 'l2') {
-      nextLabel = 'Claim the title →'; nextFn = `soNext(true,true)`;
-    } else {
-      nextLabel = won ? `Advance to next rung →` : 'View your run →';
-      nextFn = `soNext(${won},false)`;
-    }
+    const btn = lancasterNextButton(round, won, 'soNext');
     let html = backBtn();
     html += roundBanner(round, state.roundIdx, d.rounds.length);
     html += `<div class="result-card ${won ? 'win' : 'loss'}">
@@ -1416,7 +1486,7 @@ function renderSOReveal(main) {
       <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
       <div class="result-detail">You ${myP} – ${opP} Opp</div>
     </div>
-    <button class="next-btn" onclick="${nextFn}">${nextLabel}</button>`;
+    <button class="next-btn" onclick="${btn.fn}">${btn.label}</button>`;
     html += buildHistory();
     main.innerHTML = html;
     return;
@@ -1461,22 +1531,21 @@ function soNext(won, isFinal) {
     const inLadder = isLadderRound(round.key);
 
     if (!won) {
-      state.phase = 'eliminated'; render(); return;
+      // Losing the championship match (l2) is runner-up, not elimination
+      state.phase = (inLadder && round.key === 'l2') ? 'silver' : 'eliminated';
+      render(); return;
     }
 
     if (!inLadder) {
       // Qualifying SO win — accumulate real end totals (not the bumped myPts)
-      if (won) accumulateLancasterQual();
-      const lastQualIdx = state.data.rounds.findIndex(r => isLadderRound(r.key)) - 1;
-      if (won && state.roundIdx === lastQualIdx) {
+      accumulateLancasterQual();
+      if (state.roundIdx === lastQualIdx()) {
         state.lancasterSeed = getLancasterSeed(state.lancasterQualTotal, state.lancasterQualElevens);
         state.lancasterInLadder = true;
         state.phase = 'lancasterSeeded';
-      } else if (won) {
+      } else {
         advanceRound();
         state.phase = 'playing';
-      } else {
-        state.phase = 'eliminated';
       }
     } else {
       // Ladder SO win — advance to next rung or claim title
@@ -1524,16 +1593,8 @@ function renderMatchResult(main) {
   let nextLabel, nextFn;
 
   if (state.isLancaster) {
-    const inLadder = isLadderRound(round.key);
-    if (!won) {
-      nextLabel = 'View your run →'; nextFn = `matchNext(false)`;
-    } else if (!inLadder && state.roundIdx === 2) {
-      nextLabel = 'See your seeding →'; nextFn = `matchNext(true)`;
-    } else if (inLadder && round.key === 'l2') {
-      nextLabel = 'Claim the title →'; nextFn = `matchNext(true)`;
-    } else {
-      nextLabel = `Advance to next rung →`; nextFn = `matchNext(true)`;
-    }
+    const btn = lancasterNextButton(round, won, 'matchNext');
+    nextLabel = btn.label; nextFn = btn.fn;
   } else if (won) {
     nextLabel = `Advance to ${d.rounds[state.roundIdx+1].label} →`;
     nextFn = `matchNext(true)`;
@@ -1605,6 +1666,9 @@ function initBronze() {
   state.bMyEnds   = []; state.bOppEnds   = [];
   state.bMyPts    = 0;  state.bOppPts    = 0;
   state.bOppMatchEnds = null;
+  // Clear any shoot-off state left over from the semi-final
+  state.soOppRaw = null; state.soMyRaw = null;
+  state.soOppArrows = null; state.soMyArrows = null;
   state.arrows = [];
   state.arrowTarget = state.rules.arrowsPerEnd;
   state.phase = 'bronze';
@@ -1634,6 +1698,7 @@ function renderBronze(main) {
 function confirmBronzeArrows(arrows, total) {
   const rules = state.rules;
   const round = state.data.rounds[state.roundIdx];
+  const numEnds = currentNumEnds();   // bronze uses the final's end count
 
   if (rules.scoring === 'sets') {
     const pool = state.data.sets[round.key];
@@ -1646,11 +1711,10 @@ function confirmBronzeArrows(arrows, total) {
     else                       { state.bMyPts++; state.bOppPts++; }
 
     const played = state.bMyScores.length;
-    const left   = rules.numEnds - played;
     const myP = state.bMyPts, opP = state.bOppPts;
     const myWon  = myP >= rules.winPts && myP > opP;
     const oppWon = opP >= rules.winPts && opP > myP;
-    if (myWon || oppWon || played >= rules.numEnds) {
+    if (myWon || oppWon || played >= numEnds) {
       if (myP === opP) {
         const soPool = pool.so;
         if (rules.soArrows === 1) {
@@ -1669,7 +1733,7 @@ function confirmBronzeArrows(arrows, total) {
   } else {
     if (!state.bOppMatchEnds) {
       const oppTotal = rand(state.data.scores[round.key]);
-      const ends = decomposeTotal(oppTotal, rules.numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
+      const ends = decomposeTotal(oppTotal, numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
       state.bOppMatchEnds = ends.map(t => ({
         total: t,
         arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX)
@@ -1678,10 +1742,15 @@ function confirmBronzeArrows(arrows, total) {
     const idx = state.bMyEnds.length;
     state.bMyEnds.push({ arrows: [...arrows], total });
     state.bOppEnds.push(state.bOppMatchEnds[idx]);
-    if (state.bMyEnds.length >= rules.numEnds) {
+    if (state.bMyEnds.length >= numEnds) {
       state.bMyPts = state.bMyEnds.reduce((s, v) => s + v.total, 0);
       state.bOppPts = state.bOppEnds.reduce((s, v) => s + v.total, 0);
-      resolveBronze();
+      if (state.bMyPts === state.bOppPts) {
+        // Tied bronze — shoot-off (points land in bronze buckets via confirmSO)
+        setupTotalShootoff();
+      } else {
+        resolveBronze();
+      }
     }
   }
   render();
@@ -1697,7 +1766,8 @@ function resolveBronze() {
 }
 
 function renderBronzeResult(main) {
-  const won = state.bMyPts >= state.bOppPts;
+  // Strict comparison: ties are always resolved by a shoot-off before this screen
+  const won = state.bMyPts > state.bOppPts;
   const borderCol = won ? 'rgba(180,120,30,0.7)' : 'var(--border)';
   const bgCol     = won ? 'rgba(180,120,30,0.07)' : 'var(--panel)';
   main.innerHTML = `
@@ -1728,10 +1798,12 @@ function renderMedal(type, main) {
         : `You claimed Gold at ${navEvent.label}.`
     },
     silver: {
-      icon: '🥈', title: 'Silver Medalist',
+      icon: '🥈', title: state.isLancaster ? 'Runner-up' : 'Silver Medalist',
       border: 'rgba(180,180,190,0.5)', bg: 'rgba(180,180,190,0.05)',
       color: '#ccc',
-      sub: `You reached the Final and claimed Silver at ${navEvent.label}.`
+      sub: state.isLancaster
+        ? `You reached the championship match and finished runner-up at ${navEvent.label}.`
+        : `You reached the Final and claimed Silver at ${navEvent.label}.`
     },
   };
   const c = cfg[type];
@@ -1765,12 +1837,11 @@ function renderEliminated(main) {
 
 // ── SCOREBOARDS ───────────────────────────────────────────────────────────────
 function buildSetBoard() {
-  const rules  = state.rules;
   const scores = state.inBronze ? state.bMyScores  : state.myScores;
   const opp    = state.inBronze ? state.bOppScores : state.oppScores;
   const myP    = state.inBronze ? state.bMyPts     : state.myPts;
   const opP    = state.inBronze ? state.bOppPts    : state.oppPts;
-  const maxS   = state.inBronze ? rules.numEnds : currentNumEnds();
+  const maxS   = currentNumEnds();   // handles bronze (final's end count) and per-round overrides
   const cols   = `60px repeat(${maxS},1fr) 36px`;
   const hdr    = Array.from({length: maxS}, (_, i) => `<div style="text-align:center">S${i+1}</div>`).join('');
 
@@ -1812,10 +1883,9 @@ function buildSetBoard() {
 }
 
 function buildTotalBoard() {
-  const rules  = state.rules;
   const myEnds = state.inBronze ? state.bMyEnds  : state.myEnds;
   const opEnds = state.inBronze ? state.bOppEnds : state.oppEnds;
-  const maxE   = state.inBronze ? rules.numEnds : currentNumEnds();
+  const maxE   = currentNumEnds();   // handles bronze (final's end count) and per-round overrides
   const myTot  = myEnds.reduce((s, v) => s + v.total, 0);
   const opTot  = opEnds.reduce((s, v) => s + v.total, 0);
   const cols   = `52px repeat(${maxE},1fr) 44px`;
