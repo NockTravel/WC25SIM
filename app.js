@@ -408,6 +408,8 @@ let navCategory = null;   // 'outdoor' | 'field' | 'indoor'
 let navDiv      = null;   // selected division key string
 let navEvent    = null;   // event object from manifest
 let eventAvailability = {}; // { 'eventId': true|false } populated after preflight
+let navMode     = null;   // null | 'random' | 'fullsim' — chosen on the mode screen
+let fsRankingScore = null; // ranking-round score entered for full sim
 
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 let state = null;
@@ -760,7 +762,7 @@ function divGlobalKey(eventId, divKey) {
 
 function loadDivision(ev, divKey, callback) {
   const key = divGlobalKey(ev.id, divKey);
-  if (window[key]) { callback(window[key]); return; }
+  if (window[key]) { callback(normaliseDivisionData(window[key])); return; }
 
   const path = `${ev.folder}/${divKey}.js`;
   const script = document.createElement('script');
@@ -770,7 +772,7 @@ function loadDivision(ev, divKey, callback) {
     if (!data) {
       console.warn(`File loaded but global '${key}' not found. Check the file registers the correct key.`);
     }
-    callback(data || null);
+    callback(data ? normaliseDivisionData(data) : null);
   };
   script.onerror = () => {
     console.error(`Failed to load: ${path}`);
@@ -796,6 +798,9 @@ function render() {
     if (!navDiv)      { renderDivisionPicker(main); return; }
     if (!navCategory) { renderDisciplinePicker(main); return; }
     if (!navEvent)    { renderEventPicker(main); return; }
+    // Mode step — only when the event advertises full-sim data.
+    if (eventSupportsFullSim(navEvent) && !navMode) { renderModePicker(main); return; }
+    if (navMode === 'fullsim' && fsRankingScore == null) { renderRankingPrompt(main); return; }
     renderConfirmStart(main);
     return;
   }
@@ -804,6 +809,7 @@ function render() {
   saveGame();
 
   switch (state.phase) {
+    case 'fsIntro':          renderFsIntro(main);          break;
     case 'playing':          renderPlaying(main);          break;
     case 'shootoff':         renderShootoff(main);         break;
     case 'soReveal':         renderSOReveal(main);         break;
@@ -846,6 +852,8 @@ function selectBowType(bt) {
   navDiv = null;
   navCategory = null;
   navEvent = null;
+  navMode = null;
+  fsRankingScore = null;
   eventAvailability = {};
   render();
 }
@@ -870,6 +878,8 @@ function selectDiv(id) {
   navDiv = id;
   navCategory = null;
   navEvent = null;
+  navMode = null;
+  fsRankingScore = null;
   render();
 }
 
@@ -901,6 +911,8 @@ function renderDisciplinePicker(main) {
 function selectCategory(key) {
   navCategory = key;
   navEvent = null;
+  navMode = null;
+  fsRankingScore = null;
   eventAvailability = {};
   // Show loading state while preflight runs
   const main = $('main');
@@ -944,18 +956,26 @@ function renderEventPicker(main) {
 function selectEvent(eventId) {
   const cat = window.EVENT_MANIFEST[navCategory];
   navEvent = cat.events.find(e => e.id === eventId);
+  navMode = null;
+  fsRankingScore = null;
+  fsRankDigits = '';
   render();
 }
 
 // ── CONFIRM START ─────────────────────────────────────────────────────────────
 function renderConfirmStart(main) {
   const divLabel = getDivisionLabel(navDiv);
+  const canFS = eventSupportsFullSim(navEvent);
+  const backFn = canFS ? 'navMode=null;render()' : 'navEvent=null;render()';
+  const backLbl = canFS ? '← Mode' : '← Events';
+  const modeLine = canFS ? `<div class="confirm-sub" style="margin-top:6px">Mode: Quick Play</div>` : '';
   main.innerHTML = `
-    <button class="back-btn" onclick="navEvent=null;render()">← Events</button>
+    <button class="back-btn" onclick="${backFn}">${backLbl}</button>
     <div class="confirm-block">
       <div class="confirm-event">${navEvent.label}</div>
       <div class="confirm-sub">${navEvent.sub}</div>
       <div class="confirm-div">${divLabel}</div>
+      ${modeLine}
     </div>
     <button class="start-btn" onclick="startTournament()">Enter the Tournament →</button>`;
 }
@@ -986,38 +1006,53 @@ function startTournament() {
     }
 
     const rules = getRules(divKey);  // field_recurve_women → field_individual rules
-    state = {
-      div:    navDiv,     // user-facing key (e.g. 'recurve_women')
-      divKey: divKey,     // effective key used for file/rules (e.g. 'field_recurve_women')
-      data:  data,
-      rules: rules,
-      roundIdx: 0,
-      phase: 'playing',
-      history: [],
-      // set-point match state
-      myScores:  [], oppScores: [], myPts: 0, oppPts: 0,
-      // total-score match state
-      myEnds: [], oppEnds: [], oppMatchEnds: null,
-      // arrows currently being entered
-      arrows: [],
-      arrowTarget: rules.arrowsPerEnd,
-      // shoot-off
-      soOppRaw: null, soMyRaw: null,
-      soOppArrows: null, soMyArrows: null,
-      // bronze final parallel state
-      inBronze: false,
-      bMyScores: [], bOppScores: [], bMyPts: 0, bOppPts: 0,
-      bMyEnds: [], bOppEnds: [], bOppMatchEnds: null,
-      // Lancaster-specific state
-      isLancaster: rules.scoring === 'lancaster',
-      lancasterQualTotal: 0,   // accumulated score across r1+r2+r3
-      lancasterQualElevens: 0, // accumulated 11-count across r1+r2+r3
-      lancasterSeed: null,     // determined after r3
-      lancasterLadderKey: null,// current ladder round key
-      lancasterInLadder: false,
-    };
+    state = freshMatchState(divKey, data, rules);
+    state.mode = navMode === 'fullsim' ? 'fullsim' : 'random';
     render();
   });
+}
+
+// Builds a fresh game-state object. Shared by Quick Play and Full Sim so both
+// modes start from identical state; callers override mode / full-sim fields.
+function freshMatchState(divKey, data, rules) {
+  return {
+    div:    navDiv,     // user-facing key (e.g. 'recurve_women')
+    divKey: divKey,     // effective key used for file/rules (e.g. 'field_recurve_women')
+    data:  data,
+    rules: rules,
+    mode: 'random',     // 'random' | 'fullsim'
+    roundIdx: 0,
+    phase: 'playing',
+    history: [],
+    // set-point match state
+    myScores:  [], oppScores: [], myPts: 0, oppPts: 0,
+    // total-score match state
+    myEnds: [], oppEnds: [], oppMatchEnds: null,
+    // arrows currently being entered
+    arrows: [],
+    arrowTarget: rules.arrowsPerEnd,
+    // shoot-off
+    soOppRaw: null, soMyRaw: null,
+    soOppArrows: null, soMyArrows: null,
+    soReshoot: 0,   // count of reshoots in the current shoot-off
+    // full-sim opponent provenance ('real' | 'generated' per set / SO)
+    oppSrc: [], soOppSrc: null,
+    // full-sim opponent real arrows per set (null where generated / unavailable)
+    oppArrows: [], bOppArrows: [],
+    fsArcherId: null, fsSlot: null, fsRankingScore: null,
+    // bronze final parallel state
+    inBronze: false,
+    bMyScores: [], bOppScores: [], bMyPts: 0, bOppPts: 0,
+    bMyEnds: [], bOppEnds: [], bOppMatchEnds: null,
+    bOppSrc: [],
+    // Lancaster-specific state
+    isLancaster: rules.scoring === 'lancaster',
+    lancasterQualTotal: 0,   // accumulated score across r1+r2+r3
+    lancasterQualElevens: 0, // accumulated 11-count across r1+r2+r3
+    lancasterSeed: null,     // determined after r3
+    lancasterLadderKey: null,// current ladder round key
+    lancasterInLadder: false,
+  };
 }
 
 // ── PLAYING ───────────────────────────────────────────────────────────────────
@@ -1069,8 +1104,20 @@ function submitSet(arrows, total, round) {
   const rules = state.rules;
   const pool = state.data.sets[round.key];
   const setNum = state.myScores.length + 1;
-  // Draw opponent score from pool for this set number, fall back to set 1
-  const oppScore = rand(pool[setNum] || pool[1]);
+
+  // Full sim: use the opponent's real set score when it exists, otherwise
+  // fall back to the round pool (same draw as Quick Play). Track provenance.
+  let oppScore, src = 'generated';
+  if (state.mode === 'fullsim') {
+    const real = fsRealSetScore(setNum, false);
+    if (real != null) { oppScore = real; src = 'real'; }
+    else              { oppScore = rand(pool[setNum] || pool[1]); }
+    state.oppSrc.push(src);
+    state.oppArrows.push(src === 'real' ? fsRealSetArrows(setNum, false) : null);
+  } else {
+    // Draw opponent score from pool for this set number, fall back to set 1
+    oppScore = rand(pool[setNum] || pool[1]);
+  }
 
   state.myScores.push({ arrows: [...arrows], total });
   state.oppScores.push(oppScore);
@@ -1099,9 +1146,16 @@ function checkSetMatchEnd(rules, pool) {
     if (myP === opP) {
       // Shoot-off — route to correct SO state variable based on format
       const soPool = pool.so;
-      if (rules.soArrows === 1) {
-        // Individual SO — flat pool of single values
-        state.soOppRaw = rand(soPool || [8, 9, 9, 10, 10]);
+      // Full sim, individual SO: use the opponent's real shoot-off arrow if the
+      // real match actually went to a shoot-off; otherwise draw from the pool.
+      const fsSO = state.mode === 'fullsim' && rules.soArrows === 1 ? fsResolve() : null;
+      if (fsSO && fsSO.match.so) {
+        state.soOppRaw = fsSO.match.so[fsSO.oppSide];
+        state.soOppSrc = 'real';
+      } else if (rules.soArrows === 1) {
+        // Individual SO — this round's pool, else the division-wide SO pool, else a default
+        state.soOppRaw = rand(soPool || state.data.soAll || [8, 9, 9, 10, 10]);
+        if (state.mode === 'fullsim') state.soOppSrc = 'generated';
       } else if (soPool && Array.isArray(soPool[0])) {
         // Team SO — pool of arrow arrays, draw one array
         state.soOppArrows = rand(soPool);
@@ -1433,6 +1487,16 @@ function lancasterNextButton(round, won, fnName) {
   return { label: 'Advance to next rung →', fn: `${fnName}(true${fnName === 'soNext' ? ',false' : ''})` };
 }
 
+// Draw an opponent shoot-off arrow for the current round: this round's real SO
+// pool, else the division-wide pool, else a generic default. Used for reshoots.
+function drawSoOppArrow() {
+  const round = state.data.rounds[state.roundIdx];
+  const pool = state.data.sets && round ? state.data.sets[round.key] : null;
+  const soPool = pool && pool.so;                 // set-scoring round SO pool
+  const totalSo = (state.data.so && !Array.isArray(state.data.so[0])) ? state.data.so : null; // legacy total-scoring SO pool
+  return rand(soPool || totalSo || state.data.soAll || [8, 9, 9, 10, 10]);
+}
+
 // ── SHOOT-OFF ─────────────────────────────────────────────────────────────────
 function renderShootoff(main) {
   const d = state.data;
@@ -1447,6 +1511,9 @@ function renderShootoff(main) {
     </div>`;
   } else {
     html += roundBanner(round, state.roundIdx, d.rounds.length);
+  }
+  if (state.soReshoot > 0) {
+    html += `<div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold);padding:2px 16px 6px;">Too close to separate — reshoot${state.soReshoot > 1 ? ` (×${state.soReshoot})` : ''}</div>`;
   }
   html += isSet ? buildSetBoard() : buildTotalBoard();
   html += buildArrowZone(true);
@@ -1497,11 +1564,31 @@ function confirmSO() {
     const myRaw  = arrows[0];
     state.soMyRaw = myRaw;
     const oppRaw = state.soOppRaw;
-    const myScore  = arrowScore(myRaw);
-    const oppScore = oppRaw;
+    const myScore  = arrowScore(myRaw);   // X (11) scores 10
+    const oppScore = oppRaw;              // opponent SO arrows are stored max 10
     if (myScore > oppScore)      { state[myPtsKey]++; }
     else if (myScore < oppScore) { state[oppPtsKey]++; }
-    else { resolveSOTie([myRaw], [oppRaw]); }
+    else {
+      // Tie on arrow value.
+      if (myRaw === 11) {
+        // Player shot an X; the app only has a plain 10 — X beats 10, player wins.
+        state[myPtsKey]++;
+      } else if ((myScore === 9 || myScore === 10) && Math.random() < 0.05) {
+        // A 9- or 10-value tie that's too close to separate (5%): reshoot.
+        state.soReshoot = (state.soReshoot || 0) + 1;
+        state.soMyRaw = null;
+        state.soOppRaw = drawSoOppArrow();
+        state.soOppSrc = 'generated';
+        state.arrows = [];
+        state.phase = 'shootoff';
+        render();
+        return;
+      } else if (Math.random() < 0.5) {
+        state[myPtsKey]++;
+      } else {
+        state[oppPtsKey]++;
+      }
+    }
   } else {
     // Multi-arrow SO — compare totals (X=10), then X tiebreak, then 50/50
     state.soMyArrows = [...arrows];
@@ -1578,6 +1665,7 @@ function renderSOReveal(main) {
       ${soHtml}
       <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
       <div class="result-detail">You ${myP} – ${opP} Opp</div>
+      ${fsRevealBlock(true)}
     </div>
     <button class="next-btn" onclick="bronzeSONext(${won})">${nextLabel}</button>`;
     html += buildHistory();
@@ -1622,6 +1710,7 @@ function renderSOReveal(main) {
     ${soHtml}
     <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
     <div class="result-detail">You ${myP} – ${opP} Opp</div>
+    ${fsRevealBlock(false)}
   </div>
   <button class="next-btn" onclick="${nextFn}">${nextLabel}</button>`;
   html += buildHistory();
@@ -1724,6 +1813,7 @@ function renderMatchResult(main) {
   html += `<div class="result-card ${won ? 'win' : 'loss'}">
     <div class="result-big">${won ? 'Match Won' : 'Match Lost'}</div>
     <div class="result-detail">${rules.scoring === 'sets' ? 'Points' : 'Score'}: You ${state.myPts} – ${state.oppPts} Opp</div>
+    ${fsRevealBlock(false)}
   </div>
   <button class="next-btn" onclick="${nextFn}">${nextLabel}</button>`;
   html += buildHistory();
@@ -1771,6 +1861,9 @@ function advanceRound() {
   state.oppMatchEnds = null;
   state.soOppRaw = null; state.soMyRaw = null;
   state.soOppArrows = null; state.soMyArrows = null;
+  state.oppSrc = []; state.soOppSrc = null;
+  state.oppArrows = [];
+  state.soReshoot = 0;
   state.arrows = [];
   state.arrowTarget = state.rules.arrowsPerEnd;
 }
@@ -1782,9 +1875,12 @@ function initBronze() {
   state.bMyEnds   = []; state.bOppEnds   = [];
   state.bMyPts    = 0;  state.bOppPts    = 0;
   state.bOppMatchEnds = null;
+  state.bOppSrc = []; state.bOppArrows = [];
   // Clear any shoot-off state left over from the semi-final
   state.soOppRaw = null; state.soMyRaw = null;
   state.soOppArrows = null; state.soMyArrows = null;
+  state.soOppSrc = null;
+  state.soReshoot = 0;
   state.arrows = [];
   state.arrowTarget = state.rules.arrowsPerEnd;
   state.phase = 'bronze';
@@ -1819,7 +1915,16 @@ function confirmBronzeArrows(arrows, total) {
   if (rules.scoring === 'sets') {
     const pool = state.data.sets[round.key];
     const setNum = state.bMyScores.length + 1;
-    const oppScore = rand(pool[setNum] || pool[1]);
+    let oppScore, bsrc = 'generated';
+    if (state.mode === 'fullsim') {
+      const real = fsRealSetScore(setNum, true);
+      if (real != null) { oppScore = real; bsrc = 'real'; }
+      else              { oppScore = rand(pool[setNum] || pool[1]); }
+      state.bOppSrc.push(bsrc);
+      state.bOppArrows.push(bsrc === 'real' ? fsRealSetArrows(setNum, true) : null);
+    } else {
+      oppScore = rand(pool[setNum] || pool[1]);
+    }
     state.bMyScores.push({ arrows: [...arrows], total });
     state.bOppScores.push(oppScore);
     if (total > oppScore)      { state.bMyPts += 2; }
@@ -1833,8 +1938,13 @@ function confirmBronzeArrows(arrows, total) {
     if (myWon || oppWon || played >= numEnds) {
       if (myP === opP) {
         const soPool = pool.so;
-        if (rules.soArrows === 1) {
-          state.soOppRaw = rand(soPool || [8,9,9,10]);
+        const fsSOb = state.mode === 'fullsim' && rules.soArrows === 1 ? fsResolveBronze() : null;
+        if (fsSOb && fsSOb.match.so) {
+          state.soOppRaw = fsSOb.match.so[fsSOb.oppSide];
+          state.soOppSrc = 'real';
+        } else if (rules.soArrows === 1) {
+          state.soOppRaw = rand(soPool || state.data.soAll || [8,9,9,10]);
+          if (state.mode === 'fullsim') state.soOppSrc = 'generated';
         } else if (soPool && Array.isArray(soPool[0])) {
           state.soOppArrows = rand(soPool);
         } else {
@@ -1896,6 +2006,7 @@ function renderBronzeResult(main) {
         ${won ? `You won the Bronze Medal at ${navEvent.label}.` : 'You finished fourth — just outside the medals.'}
         <br>Final: You ${state.bMyPts} – ${state.bOppPts} Opponent
       </div>
+      ${fsRevealBlock(true)}
     </div>
     <button class="next-btn" onclick="restartSame()">Try again →</button>
     <button class="next-btn" onclick="goHome()">← Choose division</button>
@@ -1928,6 +2039,7 @@ function renderMedal(type, main) {
       <div class="screen-icon">${c.icon}</div>
       <div class="screen-title" style="color:${c.color}">${c.title}</div>
       <div class="screen-sub">${c.sub}</div>
+      ${fsRevealBlock(false)}
     </div>
     <button class="next-btn" onclick="restartSame()">Try again →</button>
     <button class="next-btn" onclick="goHome()">← Choose division</button>
@@ -1945,6 +2057,7 @@ function renderEliminated(main) {
         You went out in the <strong style="color:var(--text)">${round.label}</strong>
         <br>${state.myPts} – ${state.oppPts}
       </div>
+      ${fsRevealBlock(false)}
     </div>
     <button class="next-btn" onclick="restartSame()">Try again →</button>
     <button class="next-btn" onclick="goHome()">← Choose division</button>
@@ -1957,22 +2070,26 @@ function buildSetBoard() {
   const opp    = state.inBronze ? state.bOppScores : state.oppScores;
   const myP    = state.inBronze ? state.bMyPts     : state.myPts;
   const opP    = state.inBronze ? state.bOppPts    : state.oppPts;
+  const oppSrcArr = (state.inBronze ? state.bOppSrc : state.oppSrc) || [];
+  const isFS   = state.mode === 'fullsim';
   const maxS   = currentNumEnds();   // handles bronze (final's end count) and per-round overrides
   const cols   = `60px repeat(${maxS},1fr) 36px`;
   const hdr    = Array.from({length: maxS}, (_, i) => `<div style="text-align:center">S${i+1}</div>`).join('');
+  const oppLabel = isFS ? fsOpponentName(state.inBronze) : 'Opp';
 
   let html = `<div class="scoreboard">
     <div class="score-header" style="grid-template-columns:${cols}">
       <div></div>${hdr}<div style="text-align:center">Pts</div>
     </div>
     <div class="score-row" style="grid-template-columns:${cols}">
-      <div class="player-label">Opp</div>`;
+      <div class="player-label" title="${oppLabel}">${oppLabel}</div>`;
 
   for (let s = 0; s < maxS; s++) {
     if (s < opp.length) {
       const op = opp[s], my = scores[s] ? scores[s].total : -1;
       const cls = op > my ? 'win' : op < my ? 'loss' : 'draw';
-      html += `<div class="cell filled ${cls}">${op}</div>`;
+      const gen = isFS && oppSrcArr[s] === 'generated' ? ' gen' : '';
+      html += `<div class="cell filled ${cls}${gen}">${op}</div>`;
     } else if (s === opp.length) {
       html += `<div class="cell active">—</div>`;
     } else {
@@ -1995,6 +2112,19 @@ function buildSetBoard() {
     }
   }
   html += `<div class="pts-cell pts-you">${myP}</div></div></div>`;
+
+  // Full sim: show the opponent's REAL arrows for the most recent set.
+  if (isFS) {
+    const arrowsArr = (state.inBronze ? state.bOppArrows : state.oppArrows) || [];
+    const last = arrowsArr.length ? arrowsArr[arrowsArr.length - 1] : null;
+    if (last && last.length) {
+      const pips = last.map(v => {
+        const col = (v === 11 || v === 10) ? 'var(--gold)' : v >= 9 ? 'var(--win)' : v >= 7 ? 'var(--text)' : 'var(--muted)';
+        return `<span style="font-family:'Barlow Condensed',sans-serif;font-weight:600;color:${col};margin:0 3px">${arrowDisplayStr(v)}</span>`;
+      }).join('');
+      html += `<div style="font-size:11px;color:var(--muted);text-align:center;margin:2px 0 8px;padding:0 16px;">${oppLabel} last set: ${pips}</div>`;
+    }
+  }
   return html;
 }
 
@@ -2266,6 +2396,9 @@ function goHome() {
   navBowType = null;
   navCategory = null;
   navEvent = null;
+  navMode = null;
+  fsRankingScore = null;
+  fsRankDigits = '';
   eventAvailability = {};
   render();
 }
@@ -2274,6 +2407,8 @@ function restartSame() {
   clearSave();
   const div = state ? state.div : navDiv;
   const ev  = navEvent;
+  const prevMode  = state ? state.mode : navMode;
+  const prevScore = state ? state.fsRankingScore : fsRankingScore;
   // navCategory must be preserved so effectiveDivKey translates correctly for field
   state = null;
   navDiv = navCategory === 'field' ? div.replace(/^field_/, '') : div;
@@ -2284,7 +2419,351 @@ function restartSame() {
     else if (div === 'longbow') navBowType = 'longbow';
     else navBowType = 'recurve';
   }
+  // Replay Full Sim as the same archer; otherwise Quick Play.
+  if (prevMode === 'fullsim' && prevScore != null) {
+    navMode = 'fullsim';
+    fsRankingScore = null;
+    fsRankDigits = String(prevScore);
+    beginFullSim();
+    return;
+  }
+  navMode = 'random';
   startTournament();
+}
+
+// ══ FULL SIM MODE ═════════════════════════════════════════════════════════════
+// Play as the nearest-ranked real archer and face the real bracket, with each
+// opponent's real scores along that route. Random ("Quick Play") is unchanged;
+// its pools are derived from the same match-major data at load.
+
+// ── ADAPTER: derive random pools from match-major data (idempotent) ───────────
+function normaliseDivisionData(data) {
+  if (!data || data._normalised) return data;
+  data._normalised = true;
+
+  const hasMatchMajor = data.athletes && data.matches;
+  if (!hasMatchMajor) { data._fullSim = false; return data; } // legacy flat file
+
+  // Detect scoring shape from the first match that has sets/ends.
+  let isSet = false;
+  for (const k of Object.keys(data.matches)) {
+    const arr = data.matches[k];
+    if (arr && arr[0]) { isSet = Array.isArray(arr[0].sets); break; }
+  }
+
+  // Full sim is currently implemented for set-scoring (recurve / barebow).
+  // Total-scoring match-major files still derive pools for Quick Play.
+  data._fullSim = !!(data.fullSim && isSet);
+
+  if (isSet) {
+    // Build set pools only if the file didn't ship them.
+    if (!data.sets) {
+      data.sets = {};
+      for (const k of Object.keys(data.matches)) {
+        if (k === 'bronze') continue;
+        const pool = {};
+        const so = [];
+        data.matches[k].forEach(m => {
+          (m.sets || []).forEach((pair, i) => {
+            const n = i + 1;
+            (pool[n] || (pool[n] = [])).push(pair[0], pair[1]);
+          });
+          if (m.so) so.push(m.so[0], m.so[1]);
+        });
+        if (so.length) pool.so = so;
+        data.sets[k] = pool;
+      }
+    }
+    // Division-wide shoot-off pool (every real SO arrow at this event) — used as
+    // the fallback for rounds that had no shoot-off of their own (SF/Final/Bronze).
+    if (!data.soAll) {
+      const soAll = [];
+      for (const k of Object.keys(data.matches)) {
+        (data.matches[k] || []).forEach(m => {
+          if (m.so && m.so.length >= 2) soAll.push(m.so[0], m.so[1]);
+        });
+      }
+      if (soAll.length) data.soAll = soAll;
+    }
+  } else {
+    // Total scoring — build match-total pools + flat SO pool.
+    if (!data.scores) {
+      data.scores = {};
+      const so = [];
+      for (const k of Object.keys(data.matches)) {
+        if (k === 'bronze') continue;
+        const totals = [];
+        data.matches[k].forEach(m => {
+          if (m.total) totals.push(m.total[0], m.total[1]);
+          if (m.so) so.push(Array.isArray(m.so[0]) ? m.so[0] : m.so);
+        });
+        data.scores[k] = totals;
+      }
+      if (so.length && !data.so) data.so = so;
+    }
+  }
+  return data;
+}
+
+function eventSupportsFullSim(ev) {
+  return !!(ev && ev.fullSim);
+}
+
+// ── NEAREST-RANK PLACEMENT ────────────────────────────────────────────────────
+function nearestAthleteId(score, athletes) {
+  let bestId = null, bestDiff = Infinity, bestRs = -Infinity;
+  for (const id of Object.keys(athletes)) {
+    const rs = athletes[id].rs;
+    if (typeof rs !== 'number') continue;
+    const diff = Math.abs(rs - score);
+    if (diff < bestDiff || (diff === bestDiff && rs > bestRs)) {
+      bestDiff = diff; bestRs = rs; bestId = id;
+    }
+  }
+  return bestId == null ? null : (isNaN(+bestId) ? bestId : +bestId);
+}
+
+// ── MODE PICKER ───────────────────────────────────────────────────────────────
+function renderModePicker(main) {
+  main.innerHTML = `
+    <button class="back-btn" onclick="navEvent=null;navMode=null;render()">← Events</button>
+    <div class="nav-section-label">${navEvent.label} · Choose how to play</div>
+    <div class="nav-list">
+      <div class="nav-card" onclick="chooseMode('random')">
+        <span class="nav-icon">🎲</span>
+        <div style="flex:1">
+          <div class="nav-name">Quick Play</div>
+          <div class="nav-sub">Random opponents drawn from this event's scores</div>
+        </div>
+        <span class="nav-arrow">›</span>
+      </div>
+      <div class="nav-card" onclick="chooseMode('fullsim')">
+        <span class="nav-icon">🏹</span>
+        <div style="flex:1">
+          <div class="nav-name">Full Sim</div>
+          <div class="nav-sub">Play as a real archer through the real bracket</div>
+        </div>
+        <span class="nav-arrow">›</span>
+      </div>
+    </div>`;
+}
+
+function chooseMode(mode) {
+  navMode = mode;
+  fsRankingScore = null;
+  fsRankDigits = '';
+  render();
+}
+
+// ── RANKING-SCORE PROMPT (full sim) ───────────────────────────────────────────
+let fsRankDigits = '';
+
+function renderRankingPrompt(main) {
+  const digits = fsRankDigits || '';
+  const ready = digits.length >= 2;
+  const keys = ['1','2','3','4','5','6','7','8','9','0'];
+  let pad = `<div class="numpad numpad-5col">`;
+  keys.forEach(k => { pad += `<button class="np-btn" onclick="rankingTap('${k}')">${k}</button>`; });
+  pad += `<button class="np-btn del" onclick="rankingUndo()">⌫</button>`;
+  pad += `</div>`;
+
+  main.innerHTML = `
+    <button class="back-btn" onclick="navMode=null;render()">← Mode</button>
+    <div class="nav-section-label">${navEvent.label} · Full Sim</div>
+    <div class="input-zone" style="border-color:rgba(201,168,76,0.4)">
+      <div class="set-prompt" style="color:var(--gold)">Enter your ranking-round score</div>
+      <div class="running-total" style="font-size:40px;color:var(--text);min-height:48px">${digits || '—'}</div>
+      <div style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:10px">You'll play as the archer with the closest ranking score.</div>
+      ${pad}
+    </div>
+    <button class="start-btn" style="${ready ? '' : 'opacity:0.4;pointer-events:none'}" onclick="beginFullSim()">Find my archer →</button>`;
+}
+
+function rankingTap(d) {
+  if ((fsRankDigits || '').length >= 4) return;
+  fsRankDigits = (fsRankDigits || '') + d;
+  render();
+}
+
+function rankingUndo() {
+  fsRankDigits = (fsRankDigits || '').slice(0, -1);
+  render();
+}
+
+function beginFullSim() {
+  const score = parseInt(fsRankDigits, 10);
+  if (isNaN(score)) return;
+  fsRankingScore = score;
+
+  requestPersistentStorage();
+  const main = $('main');
+  main.innerHTML = `<div class="checking-indicator" style="justify-content:center;padding:48px 20px"><div class="spinner"></div>Finding your archer…</div>`;
+
+  const divKey = effectiveDivKey(navDiv);
+  loadDivision(navEvent, divKey, (data) => {
+    if (!data) {
+      main.innerHTML = `
+        <button class="back-btn" onclick="navMode=null;render()">← Mode</button>
+        <div style="padding:32px 20px;text-align:center;color:var(--muted);font-size:13px;">Could not load division data.</div>`;
+      return;
+    }
+    if (!data._fullSim) {
+      // File doesn't actually carry full-sim data — fall back to Quick Play.
+      navMode = 'random';
+      render();
+      return;
+    }
+
+    const rules = getRules(divKey);
+    const archerId = nearestAthleteId(score, data.athletes);
+
+    state = freshMatchState(divKey, data, rules);
+    state.mode = 'fullsim';
+    state.fsRankingScore = score;
+    state.fsArcherId = archerId;
+    state.fsSlot = null;
+    state.roundIdx = fsEntryRound(data, archerId);  // start at the archer's real entry (skip byes)
+    state.phase = 'fsIntro';
+    render();
+  });
+}
+
+function renderFsIntro(main) {
+  const a = state.data.athletes[state.fsArcherId] || {};
+  const name = a.name || 'your archer';
+  const rankLine = a.rank ? `Rank #${a.rank}` : '';
+  const rsLine = a.rs != null ? `RS ${a.rs}` : '';
+  const meta = [rankLine, rsLine].filter(Boolean).join(' · ');
+  const roundLbl = state.data.rounds[state.roundIdx] ? state.data.rounds[state.roundIdx].label : '';
+  const fr = fsResolve();
+  const firstOpp = fr ? fsOpponentName(false) : null;
+  const byeNote = state.roundIdx > 0 ? ` <span style="color:var(--muted)">(byes to ${roundLbl})</span>` : '';
+  const oppLine = firstOpp
+    ? `<br><br>First match — <strong style="color:var(--text)">${roundLbl}</strong>${byeNote}<br>vs ${firstOpp}`
+    : '';
+  main.innerHTML = `
+    <div class="result-screen" style="border-color:var(--border-bright);background:var(--gold-dim);">
+      <div class="screen-icon">🏹</div>
+      <div class="screen-title" style="color:var(--gold)">You're playing as</div>
+      <div class="screen-sub">
+        <strong style="color:var(--text);font-size:18px">${name}</strong>
+        ${meta ? `<br>${meta}` : ''}
+        ${oppLine}
+        <br><br>You'll face the real bracket — real scores where they exist,
+        filled in from this round's pool where your run goes further than the real match did.
+      </div>
+    </div>
+    <button class="start-btn" onclick="fsBegin()">Begin your run →</button>`;
+}
+
+function fsBegin() {
+  state.phase = 'playing';
+  render();
+}
+
+// ── FULL-SIM OPPONENT RESOLUTION (id-based — handles byes & upsets) ────────────
+// You always "are" fsArcherId. Each round, find the real match that archer
+// actually played and face their real opponent. If the archer didn't play this
+// round (you've advanced further than they really did), there's no real match —
+// the caller falls back to the round pool and flags the scores "generated".
+function fsResolve() {
+  if (!state || state.mode !== 'fullsim' || state.fsArcherId == null) return null;
+  const key = state.data.rounds[state.roundIdx].key;
+  const arr = state.data.matches && state.data.matches[key];
+  if (!arr) return null;
+  for (const match of arr) {
+    const idx = match.p ? match.p.indexOf(state.fsArcherId) : -1;
+    if (idx !== -1) return { match, oppSide: 1 - idx, oppId: match.p[1 - idx] };
+  }
+  return null;
+}
+
+function fsResolveBronze() {
+  if (!state || state.mode !== 'fullsim') return null;
+  const arr = state.data.matches && state.data.matches.bronze;
+  if (!arr || !arr[0]) return null;
+  for (const match of arr) {
+    const idx = match.p ? match.p.indexOf(state.fsArcherId) : -1;
+    if (idx !== -1) return { match, oppSide: 1 - idx, oppId: match.p[1 - idx] };
+  }
+  const match = arr[0];
+  const oppSide = match.p[0] === state.fsArcherId ? 1 : 0;
+  return { match, oppSide, oppId: match.p[oppSide] };
+}
+
+// First round index in which the player's archer actually appears (skips byes).
+function fsEntryRound(data, archerId) {
+  const rounds = data.rounds || [];
+  for (let i = 0; i < rounds.length; i++) {
+    const arr = (data.matches && data.matches[rounds[i].key]) || [];
+    if (arr.some(mt => mt.p && mt.p.indexOf(archerId) !== -1)) return i;
+  }
+  return 0;
+}
+
+function fsActiveResolve() {
+  return state.inBronze ? fsResolveBronze() : fsResolve();
+}
+
+// Opponent's real set score for set number (1-based), or null if beyond real match.
+function fsRealSetScore(setNum, forBronze) {
+  const fr = forBronze ? fsResolveBronze() : fsResolve();
+  if (!fr || setNum > fr.match.sets.length) return null;
+  return fr.match.sets[setNum - 1][fr.oppSide];
+}
+
+// Opponent's real arrows for a set (1-based): [a,a,a], or null if unavailable.
+function fsRealSetArrows(setNum, forBronze) {
+  const fr = forBronze ? fsResolveBronze() : fsResolve();
+  if (!fr || !fr.match.arrows || setNum > fr.match.arrows.length) return null;
+  return fr.match.arrows[setNum - 1][fr.oppSide] || null;
+}
+
+function fsOpponentName(forBronze) {
+  const fr = forBronze ? fsResolveBronze() : fsResolve();
+  if (!fr) return 'Opp';
+  const a = state.data.athletes[fr.oppId];
+  return (a && a.name) ? a.name : 'Opp';
+}
+
+// "In reality: X won 6–2 in 4 sets." for the match at this bracket slot.
+function fsRealResultLine(forBronze) {
+  if (!state || state.mode !== 'fullsim') return '';
+  const fr = forBronze ? fsResolveBronze() : fsResolve();
+  if (!fr) return '';
+  const m = fr.match;
+  const names = state.data.athletes || {};
+  const nameOf = id => (names[id] && names[id].name) ? names[id].name : `#${id}`;
+  let a = m.pts[0], b = m.pts[1];
+  if (m.so) { if (m.win === 0) a++; else b++; }
+  const winnerName = nameOf(m.p[m.win]);
+  const hi = Math.max(a, b), lo = Math.min(a, b);
+  const nsets = m.sets.length;
+  const soNote = m.so ? ' (shoot-off)' : '';
+  return `In reality: ${winnerName} won ${hi}–${lo} in ${nsets} set${nsets === 1 ? '' : 's'}${soNote}.`;
+}
+
+// Which parts of what the player faced were generated vs real.
+function fsProvenanceNote(forBronze) {
+  if (!state || state.mode !== 'fullsim') return '';
+  const src = (forBronze ? state.bOppSrc : state.oppSrc) || [];
+  const gen = [];
+  src.forEach((s, i) => { if (s === 'generated') gen.push(i + 1); });
+  const parts = [];
+  if (gen.length) parts.push(`set${gen.length > 1 ? 's' : ''} ${gen.join(', ')} generated`);
+  if (state.soOppSrc === 'generated') parts.push('shoot-off generated');
+  if (!parts.length) return 'Every opponent score you faced was real.';
+  return 'Filled in: ' + parts.join(', ') + '.';
+}
+
+// Small reveal block appended under a full-sim result card.
+function fsRevealBlock(forBronze) {
+  const line = fsRealResultLine(forBronze);
+  if (!line) return '';
+  return `<div class="fs-reveal">
+    <div class="fs-real">${line}</div>
+    <div class="fs-prov">${fsProvenanceNote(forBronze)}</div>
+  </div>`;
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
