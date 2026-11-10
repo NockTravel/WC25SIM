@@ -4,7 +4,7 @@
 // Match-major format (see FORMAT.md). pts = pre-shoot-off set points.
 (function () {
   'use strict';
-  window.DIV_asiacup_singapore_2025_recurve_women = {
+  window.DIV_2025_asia_cup_2_recurve_women = {
     rounds: [
       { key: 'r64', label: '1/24', sub: 'Elimination' },
       { key: 'r32', label: '1/16', sub: 'Elimination' },
