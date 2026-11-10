@@ -1156,9 +1156,14 @@ function checkSetMatchEnd(rules, pool) {
         // Individual SO — this round's pool, else the division-wide SO pool, else a default
         state.soOppRaw = rand(soPool || state.data.soAll || [8, 9, 9, 10, 10]);
         if (state.mode === 'fullsim') state.soOppSrc = 'generated';
+      } else if (fsTeamSO() ) {
+        // Full sim, team SO: use the opponent's real shoot-off arrows
+        state.soOppArrows = fsTeamSO();
+        state.soOppSrc = 'real';
       } else if (soPool && Array.isArray(soPool[0])) {
         // Team SO — pool of arrow arrays, draw one array
         state.soOppArrows = rand(soPool);
+        if (state.mode === 'fullsim') state.soOppSrc = 'generated';
       } else {
         // Team SO fallback — generate plausible arrows within soMaxVal
         const maxV = rules.soMaxVal || 10;
@@ -1497,6 +1502,26 @@ function drawSoOppArrow() {
   return rand(soPool || totalSo || state.data.soAll || [8, 9, 9, 10, 10]);
 }
 
+// Full-sim team shoot-off: the opponent's real SO arrow array, or null.
+function fsTeamSOFrom(fr) {
+  if (!state || state.mode !== 'fullsim' || state.rules.soArrows <= 1) return null;
+  if (fr && fr.match.so && Array.isArray(fr.match.so[0])) return fr.match.so[fr.oppSide];
+  return null;
+}
+function fsTeamSO()       { return fsTeamSOFrom(fsResolve()); }
+function fsTeamSOBronze() { return fsTeamSOFrom(fsResolveBronze()); }
+
+// Draw a generated team SO arrow-array (for reshoots / no real data).
+function drawTeamSoArrows() {
+  const round = state.data.rounds[state.roundIdx];
+  const pool = state.data.sets && round ? state.data.sets[round.key] : null;
+  const soPool = (pool && pool.so) || state.data.soAll;
+  if (soPool && Array.isArray(soPool[0])) return rand(soPool);
+  const maxV = state.rules.soMaxVal || 10;
+  const fb = maxV >= 10 ? [8, 9, 9, 10, 10, 10] : [maxV - 2, maxV - 1, maxV - 1, maxV, maxV];
+  return Array.from({ length: state.rules.soArrows }, () => rand(fb));
+}
+
 // ── SHOOT-OFF ─────────────────────────────────────────────────────────────────
 function renderShootoff(main) {
   const d = state.data;
@@ -1602,7 +1627,29 @@ function confirmSO() {
 
     if (myTotal > oppTotal)      { state[myPtsKey]++; }
     else if (myTotal < oppTotal) { state[oppPtsKey]++; }
-    else { resolveSOTie(arrows, oppArrows); }
+    else if (state.mode === 'fullsim') {
+      // Full sim team tie: highest single arrow wins; equal top-value arrows
+      // (e.g. 10-10, or 6-6 in field) are too close -> 5% reshoot, else 50/50.
+      const myMax  = Math.max.apply(null, arrows.map(v => v === 11 ? 11 : arrowScore(v)));
+      const oppMax = Math.max.apply(null, oppArrows.map(v => v === 11 ? 11 : arrowScore(v)));
+      const top = rules.soMaxVal || 10;
+      if (myMax > oppMax)        { state[myPtsKey]++; }
+      else if (myMax < oppMax)   { state[oppPtsKey]++; }
+      else if (myMax >= top && Math.random() < 0.05) {
+        state.soReshoot = (state.soReshoot || 0) + 1;
+        state.soMyArrows = null;
+        state.soOppArrows = drawTeamSoArrows();
+        state.soOppSrc = 'generated';
+        state.arrows = [];
+        state.phase = 'shootoff';
+        render();
+        return;
+      } else if (Math.random() < 0.5) { state[myPtsKey]++; }
+      else { state[oppPtsKey]++; }
+    } else {
+      // Not full sim — straight 50/50 for team ties
+      if (Math.random() < 0.5) state[myPtsKey]++; else state[oppPtsKey]++;
+    }
   }
 
   state.arrows = [];
@@ -1945,8 +1992,12 @@ function confirmBronzeArrows(arrows, total) {
         } else if (rules.soArrows === 1) {
           state.soOppRaw = rand(soPool || state.data.soAll || [8,9,9,10]);
           if (state.mode === 'fullsim') state.soOppSrc = 'generated';
+        } else if (fsTeamSOBronze()) {
+          state.soOppArrows = fsTeamSOBronze();
+          state.soOppSrc = 'real';
         } else if (soPool && Array.isArray(soPool[0])) {
           state.soOppArrows = rand(soPool);
+          if (state.mode === 'fullsim') state.soOppSrc = 'generated';
         } else {
           const maxV = rules.soMaxVal || 10;
           const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2,maxV-1,maxV-1,maxV,maxV];
