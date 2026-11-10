@@ -24,6 +24,21 @@ window.EVENT_MANIFEST = {
         ]
       },
       {
+        id: '2025-asia-cup-2',
+        label: '2025 Asia Cup Stage 2',
+        sub: 'Singapore · Jun 2025',
+        folder: 'data/events/outdoor/2025-asia-cup-2',
+        fullSim: true,
+        divisions: [
+          'recurve_women', 'recurve_men',
+          'compound_women', 'compound_men',
+          'recurve_mixed_team',
+          'recurve_women_team', 'recurve_men_team',
+          'compound_mixed_team',
+          'compound_women_team', 'compound_men_team'
+        ]
+      },
+      {
         id: '2025-worlds-outdoor',
         label: '2025 World Championships',
         sub: 'Gwangju, South Korea · Sep 2025',
