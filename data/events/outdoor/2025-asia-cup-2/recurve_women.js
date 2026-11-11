@@ -14,6 +14,7 @@
       { key: 'f', label: 'Final', sub: 'Gold match' },
     ],
     fullSim: true,
+    finalRank: [6, 13, 8, 18, 7, 1, 14, 5],
     athletes: {
       1: { name: 'MOHAMAD ZAIRI Ariana Nur Diana', noc: 'MAS', rank: 1, rs: 670 },
       2: { name: 'MASHAYIKH Syaqiera', noc: 'MAS', rank: 2, rs: 666 },
