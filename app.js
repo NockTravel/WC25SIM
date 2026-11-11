@@ -1065,6 +1065,7 @@ function renderPlaying(main) {
 
   let html = backBtn();
   html += roundBanner(round, state.roundIdx, d.rounds.length);
+  html += fsOpponentLine();
   html += isSet ? buildSetBoard() : buildTotalBoard();
   html += buildArrowZone(false);
   html += buildHistory();
@@ -2059,6 +2060,7 @@ function renderBronzeResult(main) {
       </div>
       ${fsRevealBlock(true)}
     </div>
+    ${won ? fsFinalTop8Block(3) : ''}
     <button class="next-btn" onclick="restartSame()">Try again →</button>
     <button class="next-btn" onclick="goHome()">← Choose division</button>
     ${buildHistory()}`;
@@ -2092,6 +2094,7 @@ function renderMedal(type, main) {
       <div class="screen-sub">${c.sub}</div>
       ${fsRevealBlock(false)}
     </div>
+    ${fsFinalTop8Block(type === 'gold' ? 1 : 2)}
     <button class="next-btn" onclick="restartSame()">Try again →</button>
     <button class="next-btn" onclick="goHome()">← Choose division</button>
     ${buildHistory()}`;
@@ -2110,6 +2113,7 @@ function renderEliminated(main) {
       </div>
       ${fsRevealBlock(false)}
     </div>
+    ${fsAlsoOutBlock(round.key)}
     <button class="next-btn" onclick="restartSame()">Try again →</button>
     <button class="next-btn" onclick="goHome()">← Choose division</button>
     ${buildHistory()}`;
@@ -2688,9 +2692,10 @@ function renderFsIntro(main) {
   const roundLbl = state.data.rounds[state.roundIdx] ? state.data.rounds[state.roundIdx].label : '';
   const fr = fsResolve();
   const firstOpp = fr ? fsOpponentName(false) : null;
+  const oppMeta = fr ? fsOpponentMeta(false) : '';
   const byeNote = state.roundIdx > 0 ? ` <span style="color:var(--muted)">(byes to ${roundLbl})</span>` : '';
   const oppLine = firstOpp
-    ? `<br><br>First match — <strong style="color:var(--text)">${roundLbl}</strong>${byeNote}<br>vs ${firstOpp}`
+    ? `<br><br>First match — <strong style="color:var(--text)">${roundLbl}</strong>${byeNote}<br>vs ${firstOpp}${oppMeta ? ` <span style="color:var(--muted)">(${oppMeta})</span>` : ''}`
     : '';
   main.innerHTML = `
     <div class="result-screen" style="border-color:var(--border-bright);background:var(--gold-dim);">
@@ -2815,6 +2820,70 @@ function fsRevealBlock(forBronze) {
     <div class="fs-real">${line}</div>
     <div class="fs-prov">${fsProvenanceNote(forBronze)}</div>
   </div>`;
+}
+
+// Opponent's event rank + ranking score, e.g. "rank #6 · RS 658".
+function fsOpponentMeta(forBronze) {
+  const fr = forBronze ? fsResolveBronze() : fsResolve();
+  if (!fr) return '';
+  const a = state.data.athletes[fr.oppId];
+  if (!a) return '';
+  const bits = [];
+  if (a.rank != null) bits.push('rank #' + a.rank);
+  if (a.rs != null)   bits.push('RS ' + a.rs);
+  return bits.join(' · ');
+}
+
+// Line naming the current real opponent with rank + ranking score (full sim).
+function fsOpponentLine() {
+  if (!state || state.mode !== 'fullsim') return '';
+  const fr = state.inBronze ? fsResolveBronze() : fsResolve();
+  if (!fr) return '';
+  const meta = fsOpponentMeta(state.inBronze);
+  return `<div class="fs-opp-line">vs <strong>${fsOpponentName(state.inBronze)}</strong>${meta ? ` — ${meta}` : ''}</div>`;
+}
+
+// Up to n random OTHER archers who lost in the given round (excludes your match).
+function fsRoundLosers(roundKey, n) {
+  const arr = (state.data.matches && state.data.matches[roundKey]) || [];
+  const losers = [];
+  for (const m of arr) {
+    if (!m.p || m.p.indexOf(state.fsArcherId) !== -1) continue;  // skip your own match
+    const a = state.data.athletes[m.p[1 - m.win]];
+    if (a) losers.push(a);
+  }
+  for (let i = losers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = losers[i]; losers[i] = losers[j]; losers[j] = t;
+  }
+  return losers.slice(0, n);
+}
+
+// Block listing other archers who went out in the same round.
+function fsAlsoOutBlock(roundKey) {
+  if (!state || state.mode !== 'fullsim') return '';
+  const others = fsRoundLosers(roundKey, 4);
+  if (!others.length) return '';
+  const rows = others.map(a =>
+    `<div class="ao-row"><span class="ao-name">${a.name}</span><span class="ao-noc">${a.noc || ''}</span></div>`
+  ).join('');
+  return `<div class="also-out"><div class="ao-title">Also out this round</div>${rows}</div>`;
+}
+
+// Final top-8 standings with YOU slotted into the placement you achieved.
+function fsFinalTop8Block(placement) {
+  if (!state || state.mode !== 'fullsim' || !state.data.finalRank) return '';
+  const fr = state.data.finalRank;
+  let rows = '';
+  for (let i = 1; i <= Math.min(8, fr.length); i++) {
+    const you = i === placement;
+    const a = you ? null : state.data.athletes[fr[i - 1]];
+    const name = you ? 'YOU' : (a ? a.name : '—');
+    const noc = you ? '' : (a && a.noc ? a.noc : '');
+    rows += `<div class="ft-row${you ? ' you' : ''}"><span class="ft-pos">${i}</span>` +
+            `<span class="ft-name">${name}</span><span class="ft-noc">${noc}</span></div>`;
+  }
+  return `<div class="final-top8"><div class="ft-title">Final standings</div>${rows}</div>`;
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
