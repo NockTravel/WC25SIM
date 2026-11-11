@@ -752,3 +752,90 @@ html, body {
 
 @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* ── FULL SIM ──────────────────────────────────────────────────────────────── */
+/* Opponent cell whose value was generated (your run went past the real match). */
+.cell.gen { position: relative; }
+.cell.gen::after {
+  content: '~';
+  position: absolute;
+  top: -3px;
+  right: 3px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+/* Real-result reveal under a full-sim result card. */
+.fs-reveal {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.fs-real {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.fs-prov {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* ── FULL SIM: opponent line, also-out, final standings ──────────────────────── */
+.fs-opp-line {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  margin: -4px 16px 10px;
+}
+.fs-opp-line strong { color: var(--text); }
+
+.also-out {
+  margin: 10px 16px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+.ao-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+  text-align: center; margin-bottom: 8px;
+}
+.ao-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 13px;
+  padding: 3px 0; border-top: 1px solid var(--border);
+}
+.ao-row:first-of-type { border-top: none; }
+.ao-name { color: var(--text); }
+.ao-noc  { color: var(--muted); font-size: 11px; }
+
+.final-top8 {
+  margin: 12px 16px 4px;
+  border: 1px solid var(--border-bright);
+  border-radius: var(--radius);
+  padding: 12px 14px 8px;
+}
+.ft-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--gold);
+  text-align: center; margin-bottom: 8px;
+}
+.ft-row {
+  display: grid; grid-template-columns: 28px 1fr auto; align-items: center;
+  font-family: 'Barlow Condensed', sans-serif; font-size: 14px;
+  padding: 4px 0; border-top: 1px solid var(--border);
+}
+.ft-row:first-of-type { border-top: none; }
+.ft-pos { color: var(--muted); font-weight: 700; }
+.ft-name { color: var(--text); }
+.ft-noc { color: var(--muted); font-size: 11px; }
+.ft-row.you {
+  background: var(--gold-dim);
+  margin: 0 -14px; padding-left: 14px; padding-right: 14px;
+}
+.ft-row.you .ft-pos, .ft-row.you .ft-name { color: var(--gold); font-weight: 700; }
