@@ -13,6 +13,7 @@
       { key: 'f', label: 'Final', sub: 'Gold match' },
     ],
     fullSim: true,
+    finalRank: [2, 4, 8, 3, 5, 6, 10, 1],
     athletes: {
       1: { name: 'Malaysia', noc: 'MAS', rank: 1, rs: 1331 },
       2: { name: 'Indonesia', noc: 'INA', rank: 2, rs: 1331 },
