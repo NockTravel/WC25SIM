@@ -1039,7 +1039,7 @@ function freshMatchState(divKey, data, rules) {
     oppSrc: [], soOppSrc: null,
     // full-sim opponent real arrows per set (null where generated / unavailable)
     oppArrows: [], bOppArrows: [],
-    fsArcherId: null, fsSlot: null, fsRankingScore: null,
+    fsArcherId: null, fsRouteId: null, fsSlot: null, fsRankingScore: null,
     // bronze final parallel state
     inBronze: false,
     bMyScores: [], bOppScores: [], bMyPts: 0, bOppPts: 0,
@@ -1183,17 +1183,27 @@ function checkSetMatchEnd(rules, pool) {
 function setupTotalShootoff() {
   const rules = state.rules;
   const soPool = state.data.so;
+  const fr = state.mode === 'fullsim' ? (state.inBronze ? fsResolveBronze() : fsResolve()) : null;
+  const realSO = fr && fr.match.so ? fr.match.so[fr.oppSide] : null;
   if (rules.soArrows === 1) {
-    // Individual SO — set soOppRaw from a flat pool
-    state.soOppRaw = rand(soPool && !Array.isArray(soPool[0]) ? soPool : [Math.round(rules.soMaxVal * 0.8), rules.soMaxVal - 1, rules.soMaxVal - 1, rules.soMaxVal]);
+    // Individual SO (1 arrow)
+    if (realSO != null && !Array.isArray(realSO)) {
+      state.soOppRaw = realSO; state.soOppSrc = 'real';
+    } else {
+      state.soOppRaw = rand(soPool && !Array.isArray(soPool[0]) ? soPool : [Math.round(rules.soMaxVal * 0.8), rules.soMaxVal - 1, rules.soMaxVal - 1, rules.soMaxVal]);
+      if (state.mode === 'fullsim') state.soOppSrc = 'generated';
+    }
+  } else if (realSO && Array.isArray(realSO)) {
+    // Team SO — opponent's real arrow array
+    state.soOppArrows = realSO; state.soOppSrc = 'real';
   } else if (soPool && Array.isArray(soPool[0])) {
-    // Multi-arrow team SO — draw a pair/triple from pool of arrays
     state.soOppArrows = rand(soPool);
+    if (state.mode === 'fullsim') state.soOppSrc = 'generated';
   } else {
-    // Multi-arrow fallback
     const maxV = rules.soMaxVal || 10;
     const fallbackPool = maxV >= 10 ? [8,9,9,10,10,10] : [maxV-2, maxV-1, maxV-1, maxV, maxV];
     state.soOppArrows = Array.from({ length: rules.soArrows }, () => rand(fallbackPool));
+    if (state.mode === 'fullsim') state.soOppSrc = 'generated';
   }
   state.arrows = [];
   state.phase = 'shootoff';
@@ -1202,11 +1212,14 @@ function setupTotalShootoff() {
 function submitEnd(arrows, total, round) {
   const rules = state.rules;
   if (!state.oppMatchEnds) {
-    drawOppEnds(rules, round.key);
+    const real = fsBuildOppEnds(false);
+    if (real) state.oppMatchEnds = real;
+    else drawOppEnds(rules, round.key);
   }
   const endIdx = state.myEnds.length;
   state.myEnds.push({ arrows: [...arrows], total });
   state.oppEnds.push(state.oppMatchEnds[endIdx]);
+  if (state.mode === 'fullsim') state.oppSrc.push(state.oppMatchEnds[endIdx].src || 'generated');
 
   if (state.myEnds.length >= currentNumEnds()) {
     state.myPts = state.myEnds.reduce((s, v) => s + v.total, 0);
@@ -1225,7 +1238,8 @@ function drawOppEnds(rules, roundKey) {
   const endTotals = decomposeTotal(oppTotal, numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
   state.oppMatchEnds = endTotals.map(t => ({
     total: t,
-    arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX)
+    arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX),
+    src: 'generated'
   }));
 }
 
@@ -1902,6 +1916,8 @@ function matchNext(won) {
 // ── ADVANCE ROUND ─────────────────────────────────────────────────────────────
 function advanceRound() {
   // Lancaster qualifying accumulation is handled by resolveLancasterMatch only — not here
+  // Full Sim: adopt the real line you won into BEFORE moving to the next round.
+  fsAdvanceRoute();
   state.roundIdx++;
   state.myScores = []; state.oppScores = [];
   state.myEnds   = []; state.oppEnds   = [];
@@ -1917,7 +1933,26 @@ function advanceRound() {
 }
 
 // ── BRONZE FINAL ──────────────────────────────────────────────────────────────
+// Point the routing identity at your semifinal's real loser so the bronze match
+// resolves to the OTHER semifinal's loser — correct even when you reached the
+// semi by taking over a line (incl. when the archer whose line you rode actually
+// won their semi in reality, so YOU are the one who "lost" into bronze).
+function fsRouteToBronze() {
+  if (!state || state.mode !== 'fullsim') return;
+  const d = state.data;
+  const fr = fsResolve();                       // your semifinal match, via current routeId
+  const bArr = (d.matches && d.matches.bronze) || [];
+  if (!fr || !bArr.length) return;
+  const semiIds = fr.match.p || [];
+  for (const m of bArr) {
+    if (!m.p) continue;
+    const hit = semiIds.find(id => m.p.indexOf(id) !== -1);
+    if (hit != null) { state.fsRouteId = hit; return; }  // your side's real bronze entrant
+  }
+}
+
 function initBronze() {
+  fsRouteToBronze();
   state.inBronze = true;
   state.bMyScores = []; state.bOppScores = [];
   state.bMyEnds   = []; state.bOppEnds   = [];
@@ -2010,16 +2045,22 @@ function confirmBronzeArrows(arrows, total) {
     }
   } else {
     if (!state.bOppMatchEnds) {
-      const oppTotal = rand(state.data.scores[round.key]);
-      const ends = decomposeTotal(oppTotal, numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
-      state.bOppMatchEnds = ends.map(t => ({
-        total: t,
-        arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX)
-      }));
+      const real = fsBuildOppEnds(true);
+      if (real) state.bOppMatchEnds = real;
+      else {
+        const oppTotal = rand(state.data.scores[round.key]);
+        const ends = decomposeTotal(oppTotal, numEnds, rules.maxEnd, Math.round(rules.maxEnd * 0.72));
+        state.bOppMatchEnds = ends.map(t => ({
+          total: t,
+          arrows: decomposeEnd(t, rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX),
+          src: 'generated'
+        }));
+      }
     }
     const idx = state.bMyEnds.length;
     state.bMyEnds.push({ arrows: [...arrows], total });
     state.bOppEnds.push(state.bOppMatchEnds[idx]);
+    if (state.mode === 'fullsim') state.bOppSrc.push(state.bOppMatchEnds[idx].src || 'generated');
     if (state.bMyEnds.length >= numEnds) {
       state.bMyPts = state.bMyEnds.reduce((s, v) => s + v.total, 0);
       state.bOppPts = state.bOppEnds.reduce((s, v) => s + v.total, 0);
@@ -2192,12 +2233,13 @@ function buildTotalBoard() {
   const cols   = `52px repeat(${maxE},1fr) 44px`;
   const hdr    = Array.from({length: maxE}, (_, i) => `<div style="text-align:center">E${i+1}</div>`).join('');
 
+  const oppLabel = state.mode === 'fullsim' ? fsOpponentName(state.inBronze) : 'Opp';
   let html = `<div class="scoreboard">
     <div class="score-header" style="grid-template-columns:${cols}">
       <div></div>${hdr}<div style="text-align:center">Tot</div>
     </div>
     <div class="score-row" style="grid-template-columns:${cols}">
-      <div class="player-label">Opp</div>`;
+      <div class="player-label" title="${oppLabel}">${oppLabel}</div>`;
 
   for (let e = 0; e < maxE; e++) {
     if (e < opEnds.length) {
@@ -2236,7 +2278,7 @@ function buildTotalBoard() {
       const col = v === 11 || v === 10 ? 'var(--gold)' : v >= 9 ? 'var(--win)' : 'var(--muted)';
       return `<span style="font-family:'Barlow Condensed',sans-serif;font-weight:600;color:${col};margin:0 3px">${arrowDisplayStr(v)}</span>`;
     }).join('');
-    html += `<div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px;padding:0 16px;">Opp last end: ${pips}</div>`;
+    html += `<div style="font-size:11px;color:var(--muted);text-align:center;margin-bottom:8px;padding:0 16px;">${oppLabel} last end: ${pips}</div>`;
   }
   return html;
 }
@@ -2287,10 +2329,33 @@ function buildArrowZone(isSO) {
 
   const confirmFn = isSO ? 'confirmSO()' : 'confirmArrows()';
 
+  // Full Sim arrow-for-arrow reveal: show the opponent's real arrows, one at a
+  // time, as you enter yours — so you can practice head-to-head like a final.
+  let oppRevealHtml = '';
+  const oppReveal = isSO ? null : curOppRealArrows();
+  if (oppReveal && oppReveal.length) {
+    const name = fsOpponentName(state.inBronze);
+    const oppRun = oppReveal.slice(0, entered).reduce((s, v) => s + arrowScore(v), 0);
+    const oppPips = Array.from({length: target}, (_, i) => {
+      if (i < entered && i < oppReveal.length) {
+        const v = oppReveal[i];
+        const col = v === 11 ? 'var(--gold)' : v >= 9 ? 'var(--win)' : v >= 7 ? 'var(--text)' : 'var(--muted)';
+        return `<div class="arrow-pip" style="color:${col}">${arrowDisplayStr(v)}</div>`;
+      }
+      return `<div class="arrow-pip opp-hidden">${i === entered ? '·' : ''}</div>`;
+    }).join('');
+    oppRevealHtml = `<div class="opp-reveal">
+      <div class="opp-reveal-name" title="${name}">${name}</div>
+      <div class="arrow-pips opp-pips">${oppPips}</div>
+      <div class="opp-reveal-run">${entered > 0 ? oppRun : ''}</div>
+    </div>`;
+  }
+
   return `<div class="input-zone" style="${isSO ? 'border-color:rgba(201,168,76,0.6);' : ''}">
     <div class="set-prompt" style="${isSO ? 'color:var(--gold);' : ''}">${setLabel} · ${arrowLbl}</div>
     <div class="arrow-pips">${pipHtml}</div>
     <div class="running-total">${entered > 0 ? `Running total: ${runningTotal}` : ''}</div>
+    ${oppRevealHtml}
     ${buildNumpad(maxVal, allowX, allDone, confirmFn)}
   </div>`;
 }
@@ -2506,9 +2571,9 @@ function normaliseDivisionData(data) {
     if (arr && arr[0]) { isSet = Array.isArray(arr[0].sets); break; }
   }
 
-  // Full sim is currently implemented for set-scoring (recurve / barebow).
-  // Total-scoring match-major files still derive pools for Quick Play.
-  data._fullSim = !!(data.fullSim && isSet);
+  // Full sim works for both set-scoring (recurve/barebow) and total-scoring
+  // (compound, and field total-score) match-major files.
+  data._fullSim = !!(data.fullSim && hasMatchMajor);
 
   if (isSet) {
     // Build set pools only if the file didn't ship them.
@@ -2555,6 +2620,19 @@ function normaliseDivisionData(data) {
         data.scores[k] = totals;
       }
       if (so.length && !data.so) data.so = so;
+    }
+    // Division-wide SO pool (fallback for rounds with no shoot-off of their own).
+    if (!data.soAll) {
+      const soAll = [];
+      for (const k of Object.keys(data.matches)) {
+        (data.matches[k] || []).forEach(m => {
+          if (m.so) {
+            if (Array.isArray(m.so[0])) soAll.push(m.so[0], m.so[1]);  // team: arrays
+            else soAll.push(m.so[0], m.so[1]);                          // individual: numbers
+          }
+        });
+      }
+      if (soAll.length) data.soAll = soAll;
     }
   }
   return data;
@@ -2676,6 +2754,7 @@ function beginFullSim() {
     state.mode = 'fullsim';
     state.fsRankingScore = score;
     state.fsArcherId = archerId;
+    state.fsRouteId = archerId;   // bracket-routing identity; follows the real line you win into
     state.fsSlot = null;
     state.roundIdx = fsEntryRound(data, archerId);  // start at the archer's real entry (skip byes)
     state.phase = 'fsIntro';
@@ -2723,12 +2802,12 @@ function fsBegin() {
 // round (you've advanced further than they really did), there's no real match —
 // the caller falls back to the round pool and flags the scores "generated".
 function fsResolve() {
-  if (!state || state.mode !== 'fullsim' || state.fsArcherId == null) return null;
+  if (!state || state.mode !== 'fullsim' || state.fsRouteId == null) return null;
   const key = state.data.rounds[state.roundIdx].key;
   const arr = state.data.matches && state.data.matches[key];
   if (!arr) return null;
   for (const match of arr) {
-    const idx = match.p ? match.p.indexOf(state.fsArcherId) : -1;
+    const idx = match.p ? match.p.indexOf(state.fsRouteId) : -1;
     if (idx !== -1) return { match, oppSide: 1 - idx, oppId: match.p[1 - idx] };
   }
   return null;
@@ -2739,12 +2818,30 @@ function fsResolveBronze() {
   const arr = state.data.matches && state.data.matches.bronze;
   if (!arr || !arr[0]) return null;
   for (const match of arr) {
-    const idx = match.p ? match.p.indexOf(state.fsArcherId) : -1;
+    const idx = match.p ? match.p.indexOf(state.fsRouteId) : -1;
     if (idx !== -1) return { match, oppSide: 1 - idx, oppId: match.p[1 - idx] };
   }
   const match = arr[0];
-  const oppSide = match.p[0] === state.fsArcherId ? 1 : 0;
+  const oppSide = match.p[0] === state.fsRouteId ? 1 : 0;
   return { match, oppSide, oppId: match.p[oppSide] };
+}
+
+// Full Sim bracket routing: decide whose real line to follow into the NEXT round.
+// Exactly one of {you, the opponent you just beat} actually advanced in reality,
+// and that archer is the one present in the next round's matches. Adopt them —
+// so when you win a match your archer really lost, you inherit the real winner's
+// path and keep facing real opponents with real scores as deep as you can go.
+function fsAdvanceRoute() {
+  if (!state || state.mode !== 'fullsim') return;
+  const d = state.data;
+  const next = d.rounds[state.roundIdx + 1];
+  if (!next) return;
+  const nextArr = (d.matches && d.matches[next.key]) || [];
+  const inNext = id => nextArr.some(m => m.p && m.p.indexOf(id) !== -1);
+  if (inNext(state.fsRouteId)) return;         // your archer's real line continues
+  const fr = fsResolve();                        // match just won, via current routeId
+  if (fr && inNext(fr.oppId)) state.fsRouteId = fr.oppId;  // take the real winner's slot
+  // else neither appears (data gap / final) — leave routeId; opp falls back to a pool draw
 }
 
 // First round index in which the player's archer actually appears (skips byes).
@@ -2775,6 +2872,44 @@ function fsRealSetArrows(setNum, forBronze) {
   return fr.match.arrows[setNum - 1][fr.oppSide] || null;
 }
 
+// Opponent's real arrows for the CURRENT (in-progress) set/end — Full Sim only.
+// Returns an array of arrow values to reveal arrow-for-arrow as you shoot, or
+// null when unavailable (Quick Play, Lancaster, shoot-off, or a generated
+// opponent beyond the archer's real bracket run). Deterministic: it reads the
+// same static match data that submit records, so the reveal never desyncs.
+function curOppRealArrows() {
+  if (!state || state.mode !== 'fullsim' || state.isLancaster) return null;
+  if (state.phase === 'shootoff') return null;
+  const rules = state.rules, forBronze = !!state.inBronze;
+  if (rules.scoring === 'sets') {
+    const setNum = (forBronze ? state.bMyScores : state.myScores).length + 1;
+    return fsRealSetArrows(setNum, forBronze);   // real arrows or null
+  }
+  // total scoring — materialise the real opponent ends (same objects submit uses)
+  const endsKey = forBronze ? 'bOppMatchEnds' : 'oppMatchEnds';
+  if (!state[endsKey]) {
+    const real = fsBuildOppEnds(forBronze);
+    if (real) state[endsKey] = real;            // real only; never pre-generate
+  }
+  const idx = (forBronze ? state.bMyEnds : state.myEnds).length;
+  const e = state[endsKey] && state[endsKey][idx];
+  return (e && e.src === 'real' && e.arrows && e.arrows.length) ? e.arrows : null;
+}
+
+// Total-scoring full sim: opponent's real per-end objects, or null if unavailable.
+function fsBuildOppEnds(forBronze) {
+  if (!state || state.mode !== 'fullsim') return null;
+  const fr = forBronze ? fsResolveBronze() : fsResolve();
+  if (!fr || !fr.match.ends) return null;
+  const side = fr.oppSide, rules = state.rules;
+  return fr.match.ends.map((pair, i) => ({
+    total: pair[side],
+    arrows: (fr.match.arrows && fr.match.arrows[i]) ? fr.match.arrows[i][side]
+            : decomposeEnd(pair[side], rules.arrowsPerEnd, rules.maxArrowVal, rules.allowX),
+    src: 'real',
+  }));
+}
+
 function fsOpponentName(forBronze) {
   const fr = forBronze ? fsResolveBronze() : fsResolve();
   if (!fr) return 'Opp';
@@ -2790,12 +2925,17 @@ function fsRealResultLine(forBronze) {
   const m = fr.match;
   const names = state.data.athletes || {};
   const nameOf = id => (names[id] && names[id].name) ? names[id].name : `#${id}`;
+  const winnerName = nameOf(m.p[m.win]);
+  const soNote = m.so ? ' (shoot-off)' : '';
+  if (m.total) {
+    // Total-scoring (compound / field): cumulative totals.
+    const hi = Math.max(m.total[0], m.total[1]), lo = Math.min(m.total[0], m.total[1]);
+    return `In reality: ${winnerName} won ${hi}–${lo}${soNote}.`;
+  }
   let a = m.pts[0], b = m.pts[1];
   if (m.so) { if (m.win === 0) a++; else b++; }
-  const winnerName = nameOf(m.p[m.win]);
   const hi = Math.max(a, b), lo = Math.min(a, b);
   const nsets = m.sets.length;
-  const soNote = m.so ? ' (shoot-off)' : '';
   return `In reality: ${winnerName} won ${hi}–${lo} in ${nsets} set${nsets === 1 ? '' : 's'}${soNote}.`;
 }
 
@@ -2803,10 +2943,11 @@ function fsRealResultLine(forBronze) {
 function fsProvenanceNote(forBronze) {
   if (!state || state.mode !== 'fullsim') return '';
   const src = (forBronze ? state.bOppSrc : state.oppSrc) || [];
+  const unit = state.rules.scoring === 'total' ? 'end' : 'set';
   const gen = [];
   src.forEach((s, i) => { if (s === 'generated') gen.push(i + 1); });
   const parts = [];
-  if (gen.length) parts.push(`set${gen.length > 1 ? 's' : ''} ${gen.join(', ')} generated`);
+  if (gen.length) parts.push(`${unit}${gen.length > 1 ? 's' : ''} ${gen.join(', ')} generated`);
   if (state.soOppSrc === 'generated') parts.push('shoot-off generated');
   if (!parts.length) return 'Every opponent score you faced was real.';
   return 'Filled in: ' + parts.join(', ') + '.';
@@ -2848,7 +2989,7 @@ function fsRoundLosers(roundKey, n) {
   const arr = (state.data.matches && state.data.matches[roundKey]) || [];
   const losers = [];
   for (const m of arr) {
-    if (!m.p || m.p.indexOf(state.fsArcherId) !== -1) continue;  // skip your own match
+    if (!m.p || m.p.indexOf(state.fsRouteId) !== -1) continue;  // skip the match you played
     const a = state.data.athletes[m.p[1 - m.win]];
     if (a) losers.push(a);
   }
